@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-
-const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
+import { apiFetch } from '../api'
 
 export default function Orders() {
     const [orders, setOrders] = useState([])
@@ -17,7 +16,7 @@ export default function Orders() {
 
         setLoading(true)
         try {
-            const res = await fetch(`${API_URL}/users/${searchId}/orders`)
+            const res = await apiFetch(`/users/${searchId}/orders`)
             if (res.ok) {
                 const data = await res.json()
                 setOrders(data || [])

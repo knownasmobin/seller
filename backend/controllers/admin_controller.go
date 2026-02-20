@@ -1,18 +1,84 @@
 package controllers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/username/sell-bot-backend/database"
 	"github.com/username/sell-bot-backend/models"
 )
+
+// Simple in-memory token store
+var (
+	validTokens = make(map[string]time.Time)
+	tokenMu     sync.RWMutex
+)
+
+func generateToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// AdminLogin validates the dashboard password and returns a session token
+func AdminLogin(c *fiber.Ctx) error {
+	type LoginReq struct {
+		Password string `json:"password"`
+	}
+
+	var req LoginReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	adminPass := os.Getenv("ADMIN_DASHBOARD_PASSWORD")
+	if adminPass == "" {
+		adminPass = "admin123" // fallback default
+	}
+
+	if req.Password != adminPass {
+		return c.Status(401).JSON(fiber.Map{"error": "Invalid password"})
+	}
+
+	token := generateToken()
+	tokenMu.Lock()
+	validTokens[token] = time.Now().Add(24 * time.Hour)
+	tokenMu.Unlock()
+
+	return c.JSON(fiber.Map{
+		"token":   token,
+		"message": "Login successful",
+	})
+}
+
+// AdminAuthMiddleware checks for a valid Bearer token on admin routes
+func AdminAuthMiddleware(c *fiber.Ctx) error {
+	authHeader := c.Get("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	tokenMu.RLock()
+	expiry, exists := validTokens[token]
+	tokenMu.RUnlock()
+
+	if !exists || time.Now().After(expiry) {
+		return c.Status(401).JSON(fiber.Map{"error": "Session expired"})
+	}
+
+	return c.Next()
+}
 
 // GetAdminStats returns aggregate statistics for the admin dashboard
 // @Summary Get admin dashboard statistics
@@ -159,4 +225,80 @@ func sendTelegramMessage(botToken string, chatID int64, message string) error {
 	}
 
 	return nil
+}
+
+// GetServers returns all server configurations
+func GetServers(c *fiber.Ctx) error {
+	var servers []models.Server
+	database.DB.Find(&servers)
+	return c.JSON(servers)
+}
+
+// UpdateServer updates a server's connection details
+func UpdateServer(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	var server models.Server
+	if err := database.DB.First(&server, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Server not found"})
+	}
+
+	type UpdateReq struct {
+		Name        *string `json:"name"`
+		APIUrl      *string `json:"api_url"`
+		Credentials *string `json:"credentials"` // JSON string: {"username":"..","password":".."}
+		IsActive    *bool   `json:"is_active"`
+	}
+
+	var req UpdateReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.Name != nil {
+		server.Name = *req.Name
+	}
+	if req.APIUrl != nil {
+		server.APIUrl = *req.APIUrl
+	}
+	if req.Credentials != nil {
+		server.Credentials = *req.Credentials
+	}
+	if req.IsActive != nil {
+		server.IsActive = *req.IsActive
+	}
+
+	database.DB.Save(&server)
+	return c.JSON(server)
+}
+
+// GetSettings returns current bot settings (card number, etc.)
+func GetSettings(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"admin_card_number": os.Getenv("ADMIN_CARD_NUMBER"),
+		"bot_name":          os.Getenv("BOT_NAME"),
+	})
+}
+
+// UpdateSettings updates bot settings by writing to a settings file
+// Note: env vars can't be changed at runtime in production.
+// For a real solution, store settings in DB. For now, return guidance.
+func UpdateSettings(c *fiber.Ctx) error {
+	type SettingsReq struct {
+		AdminCardNumber string `json:"admin_card_number"`
+	}
+
+	var req SettingsReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.AdminCardNumber != "" {
+		os.Setenv("ADMIN_CARD_NUMBER", req.AdminCardNumber)
+	}
+
+	return c.JSON(fiber.Map{
+		"message":           "Settings updated for this session",
+		"admin_card_number": os.Getenv("ADMIN_CARD_NUMBER"),
+	})
 }

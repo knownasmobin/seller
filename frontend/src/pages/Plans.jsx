@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Pencil, X, Check, ToggleLeft, ToggleRight } from 'lucide-react'
-
-const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
+import { apiFetch } from '../api'
 
 export default function Plans() {
     const [plans, setPlans] = useState([])
@@ -23,7 +22,7 @@ export default function Plans() {
 
     const fetchPlans = async () => {
         try {
-            const res = await fetch(`${API_URL}/plans`)
+            const res = await apiFetch('/plans')
             const data = await res.json()
             setPlans(data || [])
         } catch (err) {
@@ -36,9 +35,8 @@ export default function Plans() {
     const handleCreatePlan = async (e) => {
         e.preventDefault()
         try {
-            const res = await fetch(`${API_URL}/plans`, {
+            const res = await apiFetch('/plans', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newPlan)
             })
             if (res.ok) {
@@ -68,9 +66,8 @@ export default function Plans() {
 
     const saveEdit = async (id) => {
         try {
-            const res = await fetch(`${API_URL}/plans/${id}`, {
+            const res = await apiFetch(`/plans/${id}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(editData)
             })
             if (res.ok) {
@@ -84,9 +81,8 @@ export default function Plans() {
 
     const toggleActive = async (plan) => {
         try {
-            await fetch(`${API_URL}/plans/${plan.ID}`, {
+            await apiFetch(`/plans/${plan.ID}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_active: !plan.is_active })
             })
             fetchPlans()
@@ -99,9 +95,8 @@ export default function Plans() {
         if (!confirm('Are you sure you want to delete this plan?')) return
         try {
             // We disable it instead of deleting to preserve order history
-            await fetch(`${API_URL}/plans/${id}`, {
+            await apiFetch(`/plans/${id}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_active: false })
             })
             fetchPlans()

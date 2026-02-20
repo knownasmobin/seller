@@ -53,8 +53,15 @@ func SetupRoutes(router fiber.Router) {
 	endpoints.Patch("/:id", controllers.UpdateEndpoint)
 	endpoints.Delete("/:id", controllers.DeleteEndpoint)
 
-	// Admin Routes
-	admin := router.Group("/admin")
+	// Admin Auth (public - no middleware)
+	router.Post("/admin/login", controllers.AdminLogin)
+
+	// Admin Routes (protected by auth middleware)
+	admin := router.Group("/admin", controllers.AdminAuthMiddleware)
 	admin.Get("/stats", controllers.GetAdminStats)
 	admin.Post("/broadcast", controllers.BroadcastMessage)
+	admin.Get("/servers", controllers.GetServers)
+	admin.Patch("/servers/:id", controllers.UpdateServer)
+	admin.Get("/settings", controllers.GetSettings)
+	admin.Patch("/settings", controllers.UpdateSettings)
 }

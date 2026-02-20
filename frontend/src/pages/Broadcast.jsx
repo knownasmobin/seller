@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Send, Users, Zap, CheckCircle, AlertCircle } from 'lucide-react'
-
-const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
+import { apiFetch } from '../api'
 
 export default function Broadcast() {
     const [message, setMessage] = useState('')
@@ -16,9 +15,8 @@ export default function Broadcast() {
         setResult(null)
 
         try {
-            const res = await fetch(`${API_URL}/admin/broadcast`, {
+            const res = await apiFetch('/admin/broadcast', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message, target })
             })
             const data = await res.json()

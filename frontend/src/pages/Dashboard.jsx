@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Activity, Users, ShoppingCart, Server, ArrowUpRight, DollarSign, Clock } from 'lucide-react'
-
-const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
+import { apiFetch } from '../api'
 
 export default function Dashboard() {
     const [stats, setStats] = useState(null)
@@ -13,7 +12,7 @@ export default function Dashboard() {
 
     const fetchStats = async () => {
         try {
-            const res = await fetch(`${API_URL}/admin/stats`)
+            const res = await apiFetch('/admin/stats')
             if (res.ok) {
                 const data = await res.json()
                 setStats(data)

@@ -5,15 +5,15 @@ import Login from './pages/Login'
 import Plans from './pages/Plans'
 import Orders from './pages/Orders'
 import Broadcast from './pages/Broadcast'
+import Settings from './pages/Settings'
 import Sidebar from './components/Sidebar'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  // Quick rudimentary check for session
   useEffect(() => {
-    const auth = localStorage.getItem('adminAuth')
-    if (auth === 'true') {
+    const token = localStorage.getItem('adminToken')
+    if (token) {
       setIsAuthenticated(true)
     }
   }, [])
@@ -26,7 +26,7 @@ function App() {
     <Router>
       <div className="flex" style={{ minHeight: '100vh' }}>
         <Sidebar onLogout={() => {
-          localStorage.removeItem('adminAuth');
+          localStorage.removeItem('adminToken');
           setIsAuthenticated(false);
         }} />
         <main style={{ flex: 1, padding: '32px 48px', overflowY: 'auto' }}>
@@ -36,6 +36,7 @@ function App() {
             <Route path="/plans" element={<Plans />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/broadcast" element={<Broadcast />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>
