@@ -41,16 +41,18 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     card_number = await get_card_number()
 
     text = (
-        f"💳 Please transfer the amount to this card number:\n"
-        f" `{card_number}`\n\n"
-        f"After transferring, please send the screenshot of your receipt here."
+        f"💳 <b>Manual Card Transfer</b>\n\n"
+        f"Please transfer the total amount to the following card number:\n\n"
+        f"💳 <code>{card_number}</code>\n\n"
+        f"📸 <i>After transferring, please upload a clear screenshot of your payment receipt here.</i>"
     ) if lang == "en" else (
-        f"💳 لطفا مبلغ را به این شماره کارت واریز کنید:\n"
-        f" `{card_number}`\n\n"
-        f"سپس اسکرین شات رسید پرداخت خود را همینجا ارسال کنید."
+        f"💳 <b>انتقال کارت به کارت</b>\n\n"
+        f"لطفاً مبلغ خرید را به شماره کارت زیر واریز نمایید:\n\n"
+        f"💳 <code>{card_number}</code>\n\n"
+        f"📸 <i>سپس اسکرین‌شات واضح از رسید پرداخت خود را همینجا ارسال کنید.</i>"
     )
     
-    await callback.message.edit_text(text, parse_mode="Markdown")
+    await callback.message.edit_text(text, parse_mode="HTML")
     await state.set_state(PaymentState.waiting_for_screenshot)
 
 ADMIN_IDS = [x.strip() for x in os.getenv("ADMIN_ID", "123456789").split(",") if x.strip()]
@@ -100,13 +102,18 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
                 except Exception as e:
                     logging.error(f"Could not submit to admin {admin_id}: {e}")
 
-            text = "✅ Receipt received! We will verify it shortly and send your config." if lang == "en" else "✅ رسید دریافت شد! پس از تایید مدیریت کانفیگ شما ارسال خواهد شد."
+            user_text = (
+                "🧾 <b>Receipt Received & Pending Verification!</b>\n\n"
+                "Thank you for your payment. Our team will verify it shortly and your config will be automatically sent here."
+            ) if lang == "en" else (
+                "🧾 <b>رسید دریافت شد و در حال بررسی است!</b>\n\n"
+                "از پرداخت شما سپاسگزاریم. تیم ما به زودی آن را تایید کرده و سرویس شما در همینجا ارسال خواهد شد."
+            )
             
-            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             markup = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Main Menu" if lang == "en" else "🔙 منوی اصلی", callback_data="main_menu")]
             ])
-            await message.answer(text, reply_markup=markup)
+            await message.answer(user_text, reply_markup=markup, parse_mode="HTML")
             await state.clear()
         except Exception as e:
             text = "❌ Error processing your request." if lang == "en" else "❌ خطا در پردازش درخواست شما."
@@ -182,9 +189,9 @@ async def process_crypto_payment(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
 
     text = (
-        "🔗 Generating your Crypto payment link..."
+        "🔗 <i>Generating your secure Crypto payment link...</i>"
     ) if lang == "en" else (
-        "🔗 در حال ایجاد لینک پرداخت کریپتو..."
+        "🔗 <i>در حال ایجاد لینک امن پرداخت کریپتو...</i>"
     )
     
     if getattr(callback.message, "photo", None):
@@ -222,24 +229,22 @@ async def process_crypto_payment(callback: CallbackQuery):
                 payment_url = f"https://oxapay.com/pay/{order_id}test" # Fallback test link
             
             success_text = (
-                f"💳 **Order #{order_id} created!**\n\n"
-                f"**Amount:** {real_price_usdt} USDT\n"
-                f"Please click the button below to pay via USDT (TRC20/BEP20).\n"
-                f"Your config will be generated automatically once the blockchain confirms the transaction."
+                f"🛡 <b>Order #{order_id} Created!</b>\n\n"
+                f"💰 <b>Amount:</b> {real_price_usdt} USDT (TRC20/BEP20)\n\n"
+                f"⚡️ <i>Click the button below to complete your payment. Your config will be generated automatically upon blockchain confirmation!</i>"
             ) if lang == "en" else (
-                f"💳 **سفارش #{order_id} ایجاد شد!**\n\n"
-                f"**مبلغ:** {real_price_usdt} تتر (USDT)\n"
-                f"لطفا برای پرداخت با USDT روی دکمه زیر کلیک کنید.\n"
-                f"کانفیگ شما بلافاصله پس از تایید شبکه کریپتو به صورت خودکار صادر خواهد شد."
+                f"🛡 <b>سفارش #{order_id} ایجاد شد!</b>\n\n"
+                f"💰 <b>مبلغ:</b> {real_price_usdt} تتر (USDT / TRC20 یا BEP20)\n\n"
+                f"⚡️ <i>برای پرداخت روی دکمه زیر کلیک کنید. کانفیگ شما بلافاصله پس از تایید شبکه کریپتو به‌صورت خودکار صادر خواهد شد!</i>"
             )
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Pay Now (Oxapay)", url=payment_url)],
-                [InlineKeyboardButton(text="🔙 Back", callback_data="buy_menu")]
+                [InlineKeyboardButton(text="💳 Pay Now (Oxapay)" if lang == "en" else "💳 پرداخت اکنون (Oxapay)", url=payment_url)],
+                [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="buy_menu")]
             ])
             
-            await msg.edit_text(success_text, parse_mode="Markdown", reply_markup=markup)
+            await msg.edit_text(success_text, parse_mode="HTML", reply_markup=markup)
             
         except Exception as e:
             error_text = "❌ Error connecting to payment gateway." if lang == "en" else "❌ خطا در ارتباط با درگاه پرداخت."

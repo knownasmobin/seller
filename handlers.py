@@ -58,13 +58,22 @@ async def process_protocol_selection(callback: CallbackQuery):
             logging.info(f"Plans API response for {proto}: {resp.status_code} {resp.text}")
             plans = resp.json()
             if not plans:
-                msg = "No plans available for this protocol right now." if lang == "en" else "در حال حاضر پلنی برای این پروتکل موجود نیست."
+                msg = "⏳ Stay Tuned!\nThere are currently no active plans for this protocol. Please check back later." if lang == "en" else "⏳ شکیبا باشید!\nدر حال حاضر پلن فعالی برای این پروتکل وجود ندارد. لطفا بعدا مراجعه کنید."
                 await callback.answer(msg, show_alert=True)
                 return
             
             from keyboards import get_plans_menu
-            text = f"Select a {proto} plan:" if lang == "en" else f"یک پلن {proto} انتخاب کنید:"
-            await callback.message.edit_text(text, reply_markup=get_plans_menu(plans, lang))
+            text = f"📝 **Select Your {proto} Plan:**" if lang == "en" else f"📝 **پلن {proto} خود را انتخاب کنید:**"
+            markup = get_plans_menu(plans, lang)
+            
+            if getattr(callback.message, "photo", None):
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
+                await callback.message.answer(text, reply_markup=markup)
+            else:
+                await callback.message.edit_text(text, reply_markup=markup)
         except Exception as e:
             logging.exception(f"Error in process_protocol_selection:")
             await callback.answer("Backend error.", show_alert=True)
@@ -74,7 +83,7 @@ async def process_plan_selection(callback: CallbackQuery):
     plan_id = callback.data.split("_")[-1]
     lang = await get_user_lang(callback.from_user.id)
     
-    text = "You selected a plan. How would you like to pay?" if lang == "en" else "شما یک پلن انتخاب کردید. نحوه پرداخت را مشخص کنید:"
+    text = "💳 **Plan Selected!**\n\nHow would you like to complete your purchase?" if lang == "en" else "💳 **پلن انتخاب شد!**\n\nلطفاً روش پرداخت خود را مشخص کنید:"
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -99,20 +108,22 @@ async def process_profile(callback: CallbackQuery):
             balance = user_data.get("balance", 0.0)
             
             text = (
-                f"👤 **Your Profile**\n\n"
-                f"🆔 ID: `{callback.from_user.id}`\n"
-                f"💰 Balance: {balance} IRR\n"
+                f"👤 <b>Welcome to Your Profile</b>\n\n"
+                f"🆔 <b>User ID:</b> <code>{callback.from_user.id}</code>\n"
+                f"💰 <b>Wallet Balance:</b> {balance} IRR\n\n"
+                f"💡 <i>Keep your ID safe for support queries.</i>"
             ) if lang == "en" else (
-                f"👤 **پروفایل شما**\n\n"
-                f"🆔 آیدی: `{callback.from_user.id}`\n"
-                f"💰 موجودی: {balance} تومان\n"
+                f"👤 <b>پروفایل کاربری شما</b>\n\n"
+                f"🆔 <b>شناسه کاربری:</b> <code>{callback.from_user.id}</code>\n"
+                f"💰 <b>موجودی کیف پول:</b> {balance} تومان\n\n"
+                f"💡 <i>شناسه خود را برای پیگیری‌های پشتیبانی نگه‌دارید.</i>"
             )
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             markup = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")]
             ])
-            await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=markup)
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             await callback.answer("Backend error.", show_alert=True)
 
@@ -126,15 +137,15 @@ async def process_my_configs(callback: CallbackQuery):
             subs = resp.json()
             
             if not subs or not isinstance(subs, list):
-                text = "You don't have any active configs." if lang == "en" else "شما هیچ کانفیگ فعالی ندارید."
+                text = "📭 <b>No Active Subscriptions</b>\n\nYou don't have any active configs at the moment. Return to the main menu to purchase one!" if lang == "en" else "📭 <b>سرویس فعالی ندارید</b>\n\nشما در حال حاضر هیچ کانفیگ فعالی ندارید. برای خرید از منوی اصلی اقدام کنید!"
                 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")]
                 ])
-                await callback.message.edit_text(text, reply_markup=markup)
+                await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
                 return
             
-            text = "🔑 <b>Your Configs:</b>\n\n" if lang == "en" else "🔑 <b>سرویس‌های شما:</b>\n\n"
+            text = "� <b>Your Active Subscriptions:</b>\n\n" if lang == "en" else "� <b>سرویس‌های فعال شما:</b>\n\n"
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             buttons = []
             
@@ -153,11 +164,11 @@ async def process_my_configs(callback: CallbackQuery):
                 is_wg = link and (link.startswith("#") or "[Interface]" in link)
                 
                 if is_wg:
-                    link_text = "👇 Tap 'Get Config' below to select location &amp; download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
+                    link_text = "� <i>Tap the button below to select your desired location.</i>" if lang == "en" else "� <i>برای انتخاب لوکیشن و دریافت کانفیگ روی دکمه زیر کلیک کنید.</i>"
                     btn_text = f"🌍 Download Config #{index}" if lang == "en" else f"🌍 دریافت کانفیگ #{index}"
                     buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"get_wg_{sub_id}")])
                 elif link:
-                    link_text = "👇 Tap 'Get Connection Link' below." if lang == "en" else "👇 برای دریافت لینک اتصال روی دکمه زیر کلیک کنید."
+                    link_text = "� <i>Tap the button below to view your connection details.</i>" if lang == "en" else "� <i>برای دریافت لینک اتصال روی دکمه زیر کلیک کنید.</i>"
                     buttons.append([InlineKeyboardButton(text=f"🔗 Get Connection Link #{index}" if lang == "en" else f"🔗 دریافت لینک اتصال #{index}", callback_data=f"get_v2ray_link_{sub_id}")])
                 else:
                     link_text = "Processing..."
@@ -180,9 +191,9 @@ async def process_my_configs(callback: CallbackQuery):
                     idx_name = f"Config {index}" if lang == "en" else f"سرویس {index}"
 
                 if lang == "en":
-                    text += f"🔹 <b>{idx_name}</b> ({status})\n📅 <b>Expires:</b> {expiry}\nℹ️ {link_text}\n\n"
+                    text += f"� <b>{idx_name}</b>\n╰ <i>Status:</i> {status}\n╰ <i>Expires:</i> {expiry}\n{link_text}\n\n"
                 else:
-                    text += f"🔹 <b>{idx_name}</b> ({status})\n📅 <b>انقضا:</b> {expiry}\nℹ️ {link_text}\n\n"
+                    text += f"� <b>{idx_name}</b>\n╰ <i>وضعیت:</i> {status}\n╰ <i>انقضا:</i> {expiry}\n{link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -227,13 +238,13 @@ async def process_get_v2ray_link(callback: CallbackQuery):
                     link = link[idx:]
 
             text = (
-                f"🔗 <b>Your Connection Link:</b>\n\n"
+                f"🔗 <b>Your Premium Subscription Link</b>\n\n"
                 f"<code>{link}</code>\n\n"
-                f"💡 <i>Copy the link above and import it into your V2Ray/v2rayNG app.</i>"
+                f"💡 <i>Copy the link above and import it into your preferred V2Ray client (e.g. v2rayNG, V2RayN, Shadowrocket).</i>"
             ) if lang == "en" else (
-                f"🔗 <b>لینک اتصال شما:</b>\n\n"
+                f"🔗 <b>لینک اشتراک پرمیوم شما</b>\n\n"
                 f"<code>{link}</code>\n\n"
-                f"💡 <i>لینک بالا را کپی کرده و در برنامه V2Ray/v2rayNG خود وارد کنید.</i>"
+                f"💡 <i>لینک بالا را کپی کرده و در برنامه V2Ray خود (مانند v2rayNG یا Shadowrocket) وارد کنید.</i>"
             )
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -331,11 +342,11 @@ async def process_main_menu_back(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     
     welcome_text = (
-        "👋 Welcome back to the Main Menu!\n\n"
-        "Please select an option below:"
+        "👋 <b>Welcome to the Main Menu!</b>\n\n"
+        "Select an option below to get started:"
     ) if lang == "en" else (
-        "👋 به منوی اصلی بازگشتید!\n\n"
-        "لطفا یک گزینه را انتخاب کنید:"
+        "👋 <b>به منوی اصلی خوش آمدید!</b>\n\n"
+        "جهت شروع، یکی از گزینه‌های زیر را انتخاب کنید:"
     )
 
     from keyboards import get_main_menu
@@ -385,13 +396,13 @@ async def process_set_lang(callback: CallbackQuery):
     is_admin = str(callback.from_user.id) in admin_ids
     
     welcome_text = (
-        "👋 Welcome back to the Main Menu!\n\n"
-        "Please select an option below:"
+        "👋 <b>Welcome to the Main Menu!</b>\n\n"
+        "Select an option below to get started:"
     ) if lang == "en" else (
-        "👋 به منوی اصلی بازگشتید!\n\n"
-        "لطفا یک گزینه را انتخاب کنید:"
+        "👋 <b>به منوی اصلی خوش آمدید!</b>\n\n"
+        "جهت شروع، یکی از گزینه‌های زیر را انتخاب کنید:"
     )
-    await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
+    await callback.message.edit_text(welcome_text, parse_mode="HTML", reply_markup=get_main_menu(lang, is_admin=is_admin))
 
 @router.callback_query(F.data.startswith("get_wg_"))
 async def process_get_wg_config(callback: CallbackQuery):
@@ -414,8 +425,8 @@ async def process_get_wg_config(callback: CallbackQuery):
                 buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"dl_wg_{sub_id}_{ep.get('ID')}")])
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="my_configs")])
             
-            text = "🌍 **Select a server location to download your WireGuard config:**" if lang == "en" else "🌍 **برای دریافت کانفیگ WireGuard، لوکیشن سرور را انتخاب کنید:**"
-            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
+            text = "🌍 <b>Select a Server Location</b>\n\nChoose a location below to download your WireGuard configuration:" if lang == "en" else "🌍 <b>لوکیشن سرور را انتخاب کنید</b>\n\nبرای دریافت کانفیگ WireGuard، یکی از لوکیشن‌های زیر را انتخاب کنید:"
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
         except Exception:
             await callback.answer("Backend error.", show_alert=True)
 
