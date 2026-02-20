@@ -53,10 +53,10 @@ export default function Plans() {
     }
 
     return (
-        <div className="page" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="page container">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h2>VPN Plans</h2>
+                    <h1>VPN Plans</h1>
                     <p style={{ color: 'var(--text-muted)' }}>Manage your available V2Ray and WireGuard subscription plans</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
@@ -66,7 +66,7 @@ export default function Plans() {
             </div>
 
             {showAddForm && (
-                <div className="glass glass-card mb-8" style={{ animation: 'fadeIn 0.3s ease' }}>
+                <div className="glass glass-card mb-8" style={{ animation: 'slideUpFade 0.5s ease both' }}>
                     <h3 style={{ marginBottom: '16px' }}>Create New Plan</h3>
                     <form onSubmit={handleCreatePlan} className="flex gap-4" style={{ flexWrap: 'wrap' }}>
                         <div className="input-group" style={{ flex: '1 1 150px' }}>
@@ -99,7 +99,7 @@ export default function Plans() {
                 </div>
             )}
 
-            <div className="glass" style={{ overflow: 'hidden' }}>
+            <div className="glass" style={{ overflow: 'hidden', animation: 'slideUpFade 0.6s 0.2s both' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                         <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderBottom: '1px solid var(--glass-border)' }}>

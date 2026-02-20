@@ -33,15 +33,15 @@ export default function Orders() {
     }
 
     return (
-        <div className="page" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="page container">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h2>Orders & Subscriptions</h2>
+                    <h1>Orders & Subscriptions</h1>
                     <p style={{ color: 'var(--text-muted)' }}>Lookup user orders by Telegram ID</p>
                 </div>
             </div>
 
-            <div className="glass glass-card mb-8">
+            <div className="glass glass-card mb-8" style={{ animation: 'slideUpFade 0.6s 0.1s both' }}>
                 <form onSubmit={handleSearch} className="flex gap-4 items-center">
                     <div className="input-group" style={{ margin: 0, flex: 1 }}>
                         <input
@@ -56,7 +56,7 @@ export default function Orders() {
                 </form>
             </div>
 
-            <div className="glass" style={{ overflow: 'hidden' }}>
+            <div className="glass" style={{ overflow: 'hidden', animation: 'slideUpFade 0.6s 0.2s both' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                         <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderBottom: '1px solid var(--glass-border)' }}>

@@ -9,28 +9,27 @@ export default function Sidebar({ onLogout }) {
     ];
 
     return (
-        <aside className="glass" style={{ width: '260px', borderRadius: 0, borderTop: 0, borderBottom: 0, borderLeft: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '32px 24px' }}>
-                <h2 style={{ fontSize: '1.25rem', color: 'var(--primary)', letterSpacing: '0.5px' }}>SellBot Admin</h2>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>VPN Management Panel</p>
+        <aside className="sidebar flex-col" style={{ width: '280px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '36px 32px' }}>
+                <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)', letterSpacing: '-0.02em', margin: 0 }}>SellBot<span style={{ color: 'var(--primary)' }}>.</span></h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>VPN Management Panel</p>
             </div>
 
-            <nav style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <nav style={{ flex: 1, padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {navItems.map((item) => (
                     <NavLink
                         key={item.path}
                         to={item.path}
-                        className={({ isActive }) => `btn ${isActive ? 'btn-primary' : 'btn-ghost'}`}
-                        style={{ justifyContent: 'flex-start', padding: '12px 16px', width: '100%' }}
+                        className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                     >
-                        {item.icon}
+                        <span style={{ color: 'inherit' }}>{item.icon}</span>
                         {item.name}
                     </NavLink>
                 ))}
             </nav>
 
-            <div style={{ padding: '24px 16px' }}>
-                <button className="btn btn-danger" onClick={onLogout} style={{ width: '100%', justifyContent: 'center' }}>
+            <div style={{ padding: '32px 20px' }}>
+                <button className="btn btn-danger" onClick={onLogout} style={{ width: '100%' }}>
                     <LogOut size={18} />
                     Logout
                 </button>
