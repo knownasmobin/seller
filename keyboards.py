@@ -1,20 +1,26 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-def get_main_menu(lang: str) -> InlineKeyboardMarkup:
+def get_main_menu(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
+    buttons = []
     if lang == "en":
-        return InlineKeyboardMarkup(inline_keyboard=[
+        buttons = [
             [InlineKeyboardButton(text="🛒 Buy Config", callback_data="buy_menu")],
             [InlineKeyboardButton(text="🔑 My Configs", callback_data="my_configs")],
             [InlineKeyboardButton(text="👤 Profile", callback_data="profile"), 
              InlineKeyboardButton(text="🌐 Language", callback_data="change_lang")]
-        ])
+        ]
     else:
-        return InlineKeyboardMarkup(inline_keyboard=[
+        buttons = [
             [InlineKeyboardButton(text="🛒 خرید کانفیگ", callback_data="buy_menu")],
             [InlineKeyboardButton(text="🔑 سرویس‌های من", callback_data="my_configs")],
             [InlineKeyboardButton(text="👤 پروفایل", callback_data="profile"), 
              InlineKeyboardButton(text="🌐 تغییر زبان", callback_data="change_lang")]
-        ])
+        ]
+        
+    if is_admin:
+        buttons.append([InlineKeyboardButton(text="⚙️ Admin Panel", callback_data="admin_panel")])
+        
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_protocol_menu(lang: str) -> InlineKeyboardMarkup:
     # Users first select V2Ray or WireGuard

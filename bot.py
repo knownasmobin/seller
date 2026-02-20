@@ -52,7 +52,12 @@ async def cmd_start(message: types.Message):
     )
 
     from keyboards import get_main_menu
-    await message.answer(welcome_text, reply_markup=get_main_menu(lang))
+    admin_id = os.getenv("ADMIN_ID")
+    is_admin = False
+    if admin_id and str(message.from_user.id) == admin_id:
+        is_admin = True
+        
+    await message.answer(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
 
 async def main():
     if not bot_token:
@@ -63,9 +68,11 @@ async def main():
     
     from handlers import router as main_router
     from payment_handlers import router as payment_router
+    from admin_handlers import router as admin_router
     
     dp.include_router(main_router)
     dp.include_router(payment_router)
+    dp.include_router(admin_router)
     
     logging.info("Starting Telegram bot polling...")
     await dp.start_polling(bot)
