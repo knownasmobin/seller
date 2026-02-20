@@ -37,7 +37,7 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text, parse_mode="Markdown")
     await state.set_state(PaymentState.waiting_for_screenshot)
 
-ADMIN_ID = os.getenv("ADMIN_ID", "123456789")  # Ideally set this in .env
+ADMIN_IDS = [x.strip() for x in os.getenv("ADMIN_ID", "123456789").split(",") if x.strip()]
 
 @router.message(PaymentState.waiting_for_screenshot, F.photo)
 async def process_screenshot(message: Message, state: FSMContext, bot):
@@ -78,10 +78,11 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
             ])
             admin_text = f"💳 **New Card Payment**\n\n**Order ID:** {order_id}\n**User ID:** {message.from_user.id}\n**Plan ID:** {plan_id}"
             
-            try:
-                await bot.send_photo(chat_id=ADMIN_ID, photo=file_id, caption=admin_text, reply_markup=admin_markup, parse_mode="Markdown")
-            except Exception as e:
-                logging.error(f"Could not submit to admin: {e}")
+            for admin_id in ADMIN_IDS:
+                try:
+                    await bot.send_photo(chat_id=admin_id, photo=file_id, caption=admin_text, reply_markup=admin_markup, parse_mode="Markdown")
+                except Exception as e:
+                    logging.error(f"Could not submit to admin {admin_id}: {e}")
 
             text = "✅ Receipt received! We will verify it shortly and send your config." if lang == "en" else "✅ رسید دریافت شد! پس از تایید مدیریت کانفیگ شما ارسال خواهد شد."
             await message.answer(text)

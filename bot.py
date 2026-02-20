@@ -55,10 +55,8 @@ async def cmd_start(message: types.Message):
     )
 
     from keyboards import get_main_menu
-    admin_id = os.getenv("ADMIN_ID")
-    is_admin = False
-    if admin_id and str(message.from_user.id) == admin_id:
-        is_admin = True
+    admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+    is_admin = str(message.from_user.id) in admin_ids
         
     await message.answer(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
 

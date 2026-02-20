@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 router = Router()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
-ADMIN_ID = os.getenv("ADMIN_ID")
+ADMIN_IDS = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
 
 class AddPlanForm(StatesGroup):
     waiting_for_protocol = State()
@@ -25,7 +25,7 @@ class AddEndpointForm(StatesGroup):
     waiting_for_address = State()
 
 def is_admin(telegram_id: int) -> bool:
-    return bool(ADMIN_ID and str(telegram_id) == ADMIN_ID)
+    return str(telegram_id) in ADMIN_IDS
 
 # --- Admin Panel Entry ---
 @router.callback_query(F.data == "admin_panel")

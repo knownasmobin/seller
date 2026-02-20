@@ -141,8 +141,8 @@ async def process_main_menu_back(callback: CallbackQuery):
     )
 
     from keyboards import get_main_menu
-    admin_id = os.getenv("ADMIN_ID")
-    is_admin = bool(admin_id and str(callback.from_user.id) == admin_id)
+    admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+    is_admin = str(callback.from_user.id) in admin_ids
     await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
 
 @router.callback_query(F.data == "change_lang")
@@ -174,8 +174,8 @@ async def process_set_lang(callback: CallbackQuery):
     
     # Go back to main menu
     from keyboards import get_main_menu
-    admin_id = os.getenv("ADMIN_ID")
-    is_admin = bool(admin_id and str(callback.from_user.id) == admin_id)
+    admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+    is_admin = str(callback.from_user.id) in admin_ids
     
     welcome_text = (
         "👋 Welcome back to the Main Menu!\n\n"
