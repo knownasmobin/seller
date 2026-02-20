@@ -148,7 +148,47 @@ async def edit_plan_list(callback: types.CallbackQuery):
             
             await callback.message.edit_text("Select a plan to edit:", reply_markup=makeup)
         except Exception as e:
-            await callback.answer("Backend error fetching plans.", show_alert=True)
+            await callback.answer(f"❌ Error fetching users: {e}", show_alert=True)
+
+# --- Admin Support Reply Handling ---
+import re
+
+@router.message()
+async def process_admin_reply(message: types.Message, bot):
+    # Only process if it's from an admin and it's a reply to another message
+    if not is_admin(message.from_user.id) or not message.reply_to_message:
+        return
+        
+    # Check if the message being replied to contains our specific support format
+    reply_text = message.reply_to_message.text or message.reply_to_message.caption
+    if not reply_text:
+        return
+        
+    # We are looking for "User ID: 123456" in the forwarded message text
+    match = re.search(r"User ID:\s*(\d+)", reply_text)
+    if not match:
+        return
+        
+    target_user_id = int(match.group(1))
+    admin_response = message.text
+    
+    if not admin_response:
+        await message.reply("⚠️ Please reply with text.")
+        return
+        
+    # Format the message for the user
+    user_lang = "en" # We don't have user_lang readily here without a DB fetch, default to english or bilingual
+    response_to_user = (
+        f"🎧 <b>Message from Support / پیام از طرف پشتیبانی</b>\n\n"
+        f"<i>{admin_response}</i>"
+    )
+    
+    try:
+        await bot.send_message(chat_id=target_user_id, text=response_to_user, parse_mode="HTML")
+        await message.reply("✅ <b>Reply successfully sent to the user!</b>", parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Failed to send admin reply to user {target_user_id}: {e}")
+        await message.reply(f"❌ <b>Error:</b> Could not send message to user. They might have blocked the bot.\n\nDetails: {e}", parse_mode="HTML")
 
 @router.callback_query(F.data.startswith("admin_editplan_"))
 async def edit_plan_menu(callback: types.CallbackQuery, state: FSMContext):

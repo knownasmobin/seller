@@ -461,3 +461,83 @@ async def process_dl_wg_config(callback: CallbackQuery):
                 await callback.answer("Error getting config.", show_alert=True)
         except Exception as e:
             await callback.answer("Backend error.", show_alert=True)
+
+# --- Support System ---
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message
+
+class SupportState(StatesGroup):
+    waiting_for_message = State()
+
+@router.callback_query(F.data == "support_menu")
+async def process_support_menu(callback: CallbackQuery, state: FSMContext):
+    lang = await get_user_lang(callback.from_user.id)
+    text = (
+        "🎧 <b>Contact Support</b>\n\n"
+        "Please type your message below. Our admin team will get back to you here shortly."
+    ) if lang == "en" else (
+        "🎧 <b>ارتباط با پشتیبانی</b>\n\n"
+        "لطفا پیام خود را در زیر بنویسید. تیم پشتیبانی ما به زودی در همینجا پاسخ خواهند داد."
+    )
+    
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Cancel" if lang == "en" else "🔙 انصراف", callback_data="main_menu")]
+    ])
+    
+    if getattr(callback.message, "photo", None):
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=markup)
+    else:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        
+    await state.set_state(SupportState.waiting_for_message)
+
+@router.message(SupportState.waiting_for_message)
+async def process_support_message(message: Message, state: FSMContext, bot):
+    lang = await get_user_lang(message.from_user.id)
+    user_msg = message.text
+    
+    admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+    if not admin_ids:
+        await message.answer("⚠️ Support system is currently unavailable.")
+        await state.clear()
+        return
+
+    admin_text = (
+        f"📩 <b>New Support Ticket</b>\n"
+        f"👤 <b>User ID:</b> <code>{message.from_user.id}</code>\n"
+        f"🗣 <b>Username:</b> @{message.from_user.username or 'No Username'}\n\n"
+        f"<b>Message:</b>\n{user_msg}\n\n"
+        f"<i>Reply directly to this user's message using the bot to answer them.</i>"
+    )
+
+    success = False
+    for admin_id in admin_ids:
+        try:
+            await bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
+            success = True
+        except Exception as e:
+            logging.error(f"Failed to forward support message to {admin_id}: {e}")
+
+    if success:
+        reply_text = (
+            "✅ <b>Message Sent!</b>\n\n"
+            "Your message has been forwarded to our support team. We will reply as soon as possible."
+        ) if lang == "en" else (
+            "✅ <b>پیام ارسال شد!</b>\n\n"
+            "پیام شما به تیم پشتیبانی ارسال گردید. به زودی به شما پاسخ خواهیم داد."
+        )
+    else:
+        reply_text = "❌ Error sending message. Please try again later." if lang == "en" else "❌ خطا در ارسال پیام. لطفا بعدا تلاش کنید."
+
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Main Menu" if lang == "en" else "🔙 منوی اصلی", callback_data="main_menu")]
+    ])
+    
+    await message.answer(reply_text, parse_mode="HTML", reply_markup=markup)
+    await state.clear()
