@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
 from keyboards import get_protocol_menu
 import httpx
 import os
@@ -10,7 +11,8 @@ router = Router()
 API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 
 @router.callback_query(F.data == "buy_menu")
-async def process_buy_menu(callback: CallbackQuery):
+async def process_buy_menu(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     lang = await get_user_lang(callback.from_user.id)
     
     text = (
@@ -145,7 +147,7 @@ async def process_my_configs(callback: CallbackQuery):
                 await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
                 return
             
-            text = "� <b>Your Active Subscriptions:</b>\n\n" if lang == "en" else "� <b>سرویس‌های فعال شما:</b>\n\n"
+            text = "📦 <b>Your Active Subscriptions:</b>\n\n" if lang == "en" else "📦 <b>سرویس‌های فعال شما:</b>\n\n"
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             buttons = []
             
@@ -164,11 +166,11 @@ async def process_my_configs(callback: CallbackQuery):
                 is_wg = link and (link.startswith("#") or "[Interface]" in link)
                 
                 if is_wg:
-                    link_text = "� <i>Tap the button below to select your desired location.</i>" if lang == "en" else "� <i>برای انتخاب لوکیشن و دریافت کانفیگ روی دکمه زیر کلیک کنید.</i>"
+                    link_text = "📥 <i>Tap the button below to select your desired location.</i>" if lang == "en" else "📥 <i>برای انتخاب لوکیشن و دریافت کانفیگ روی دکمه زیر کلیک کنید.</i>"
                     btn_text = f"🌍 Download Config #{index}" if lang == "en" else f"🌍 دریافت کانفیگ #{index}"
                     buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"get_wg_{sub_id}")])
                 elif link:
-                    link_text = "� <i>Tap the button below to view your connection details.</i>" if lang == "en" else "� <i>برای دریافت لینک اتصال روی دکمه زیر کلیک کنید.</i>"
+                    link_text = "🔗 <i>Tap the button below to view your connection details.</i>" if lang == "en" else "🔗 <i>برای دریافت لینک اتصال روی دکمه زیر کلیک کنید.</i>"
                     buttons.append([InlineKeyboardButton(text=f"🔗 Get Connection Link #{index}" if lang == "en" else f"🔗 دریافت لینک اتصال #{index}", callback_data=f"get_v2ray_link_{sub_id}")])
                 else:
                     link_text = "Processing..."
@@ -191,9 +193,9 @@ async def process_my_configs(callback: CallbackQuery):
                     idx_name = f"Config {index}" if lang == "en" else f"سرویس {index}"
 
                 if lang == "en":
-                    text += f"� <b>{idx_name}</b>\n╰ <i>Status:</i> {status}\n╰ <i>Expires:</i> {expiry}\n{link_text}\n\n"
+                    text += f"💎 <b>{idx_name}</b>\n╰ <i>Status:</i> {status}\n╰ <i>Expires:</i> {expiry}\n{link_text}\n\n"
                 else:
-                    text += f"� <b>{idx_name}</b>\n╰ <i>وضعیت:</i> {status}\n╰ <i>انقضا:</i> {expiry}\n{link_text}\n\n"
+                    text += f"💎 <b>{idx_name}</b>\n╰ <i>وضعیت:</i> {status}\n╰ <i>انقضا:</i> {expiry}\n{link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -338,7 +340,8 @@ async def process_get_v2ray_configs(callback: CallbackQuery):
             await callback.answer("Error parsing connections.", show_alert=True)
 
 @router.callback_query(F.data == "main_menu")
-async def process_main_menu_back(callback: CallbackQuery):
+async def process_main_menu_back(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     lang = await get_user_lang(callback.from_user.id)
     
     welcome_text = (

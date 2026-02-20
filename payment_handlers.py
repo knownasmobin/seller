@@ -52,7 +52,12 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
         f"📸 <i>سپس اسکرین‌شات واضح از رسید پرداخت خود را همینجا ارسال کنید.</i>"
     )
     
-    await callback.message.edit_text(text, parse_mode="HTML")
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data=f"select_plan_{plan_id}")]
+    ])
+    
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
     await state.set_state(PaymentState.waiting_for_screenshot)
 
 ADMIN_IDS = [x.strip() for x in os.getenv("ADMIN_ID", "123456789").split(",") if x.strip()]
@@ -255,12 +260,24 @@ async def process_manual_config_btn(callback: CallbackQuery, state: FSMContext):
     await state.update_data(manual_order_id=order_id)
     await state.set_state(PaymentState.waiting_for_manual_config)
     
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Cancel", callback_data="admin_cancel_state")]
+    ])
+    
     await callback.message.reply(
         f"⚙️ **Manual Provisioning for Order #{order_id}**\n\n"
         "Please type or paste the full connection link (e.g. `vless://...`) below:",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=markup
     )
     await callback.answer()
+
+@router.callback_query(F.data == "admin_cancel_state")
+async def process_admin_cancel_state(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("✅ Operation cancelled.")
+    await callback.answer("Cancelled", show_alert=True)
 
 @router.message(PaymentState.waiting_for_manual_config)
 async def process_manual_config_input(message: Message, state: FSMContext):

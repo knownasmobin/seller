@@ -25,7 +25,7 @@ def get_main_menu(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
 def get_protocol_menu(lang: str) -> InlineKeyboardMarkup:
     # Users first select V2Ray or WireGuard
     text_v2ray = "🌐 V2Ray"
-    text_wg = "⚡️ Anti-Sanction (WG)" if lang == "en" else "⚡️ ضد تحریم (WG)"
+    text_wg = "⚡️ Anti-Sanction" if lang == "en" else "⚡️ ضد تحریم"
     text_back = "🔙 Back" if lang == "en" else "🔙 بازگشت"
 
     return InlineKeyboardMarkup(inline_keyboard=[
