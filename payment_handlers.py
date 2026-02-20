@@ -25,6 +25,7 @@ async def get_card_number():
     return os.getenv("ADMIN_CARD_NUMBER", "1234-5678-9012-3456")
 
 class PaymentState(StatesGroup):
+    waiting_for_config_name = State()
     waiting_for_screenshot = State()
     waiting_for_manual_config = State()
 
@@ -80,14 +81,21 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
             plan_data = plan_resp.json()
             real_price_irr = plan_data.get("price_irr", 0.0)
 
-            # Create the order
-            order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
-                "telegram_id": message.from_user.id,
-                "plan_id": int(plan_id),
-                "endpoint_id": int(endpoint_id),
-                "payment_method": "card",
-                "amount": float(real_price_irr)
-            })
+            data = await state.get_data()
+            plan_id = data.get("plan_id")
+            endpoint_id = data.get("endpoint_id", 0)
+            config_name = data.get("config_name", "")
+
+            # Submit order to backend
+            async with httpx.AsyncClient() as client:
+                order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
+                    "telegram_id": message.from_user.id,
+                    "plan_id": int(plan_id),
+                    "endpoint_id": int(endpoint_id),
+                    "config_name": config_name,
+                    "payment_method": "card",
+                    "amount": float(real_price_irr)
+                })
             order_data = order_resp.json()
             order_id = order_data.get("ID")
             
@@ -100,11 +108,10 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
                 resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
                 if resp.status_code == 200:
                     plan_data = resp.json()
-                    name = plan_data.get("name", "")
-                    proto = plan_data.get("protocol", "")
-                    dur = plan_data.get("duration", 0)
-                    limit = plan_data.get("data_limit", 0)
-                    plan_name = f"{name} ({proto}) - {dur} Days, {limit}GB"
+                    proto = str(plan_data.get("server_type", "")).upper()
+                    dur = plan_data.get("duration_days", 0)
+                    limit = plan_data.get("data_limit_gb", 0)
+                    plan_name = f"{proto} Plan - {dur} Days, {limit}GB"
             except Exception as e:
                 logging.error(f"Failed to fetch plan details for order {order_id}: {e}")
 
@@ -233,10 +240,14 @@ async def process_crypto_payment(callback: CallbackQuery):
             real_price_usdt = plan_data.get("price_usdt", 0.0)
 
             # We create an order first
+            data = await state.get_data()
+            config_name = data.get("config_name", "")
+
             order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
                 "telegram_id": callback.from_user.id,
                 "plan_id": int(plan_id),
                 "endpoint_id": int(endpoint_id),
+                "config_name": config_name,
                 "payment_method": "crypto",
                 "amount": float(real_price_usdt)
             })

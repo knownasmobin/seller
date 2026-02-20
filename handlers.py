@@ -80,11 +80,7 @@ async def process_protocol_selection(callback: CallbackQuery):
             logging.exception(f"Error in process_protocol_selection:")
             await callback.answer("Backend error.", show_alert=True)
 
-@router.callback_query(F.data.startswith("select_plan_"))
-async def process_plan_selection(callback: CallbackQuery):
-    plan_id = callback.data.split("_")[-1]
-    lang = await get_user_lang(callback.from_user.id)
-    
+async def show_payment_methods(message_or_callback, plan_id: str, lang: str):
     text = "💳 **Plan Selected!**\n\nHow would you like to complete your purchase?" if lang == "en" else "💳 **پلن انتخاب شد!**\n\nلطفاً روش پرداخت خود را مشخص کنید:"
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -94,7 +90,121 @@ async def process_plan_selection(callback: CallbackQuery):
         [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="buy_menu")]
     ])
     
+    if hasattr(message_or_callback, "message"):
+        await message_or_callback.message.edit_text(text, reply_markup=markup)
+    else:
+        await message_or_callback.answer(text, reply_markup=markup)
+
+
+@router.callback_query(F.data.startswith("select_plan_"))
+async def process_plan_selection(callback: CallbackQuery):
+    plan_id = callback.data.split("_")[-1]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    # Check plan protocol to figure out if we should ask for custom name
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
+            if resp.status_code == 200:
+                plan_data = resp.json()
+                proto = str(plan_data.get("server_type", "")).lower()
+                
+                if proto == "wireguard":
+                    # Wireguard doesn't support custom config names, skip to payment
+                    await show_payment_methods(callback, plan_id, lang)
+                    return
+        except Exception as e:
+            logging.error(f"Failed to fetch plan to check protocol: {e}")
+
+    # If V2Ray or unknown, ask for custom config name
+    text = (
+        "📝 **Custom Config Name (Optional)**\n\n"
+        "Do you want to choose a custom name for your VPN config?\n"
+        "*(Allowed: 3-32 characters, a-z, 0-9, and underscores)*"
+    ) if lang == "en" else (
+        "📝 **نام سفارشی کانفیگ (اختیاری)**\n\n"
+        "آیا می‌خواهید یک نام دلخواه برای کانفیگ خود انتخاب کنید؟\n"
+        "*(مجاز: ۳ تا ۳۲ کاراکتر، حروف انگلیسی، اعداد و خط تیره پایین _)*"
+    )
+    
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Yes, customize" if lang == "en" else "✍️ بله، انتخاب نام", callback_data=f"custom_name_{plan_id}")],
+        [InlineKeyboardButton(text="⏭ No, use default" if lang == "en" else "⏭ خیر، نام پیش‌فرض", callback_data=f"skip_cname_{plan_id}")],
+        [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="buy_menu")]
+    ])
+    
     await callback.message.edit_text(text, reply_markup=markup)
+
+@router.callback_query(F.data.startswith("custom_name_"))
+async def process_custom_name_prompt(callback: CallbackQuery, state: FSMContext):
+    plan_id = callback.data.split("_")[-1]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    from payment_handlers import PaymentState
+    await state.set_state(PaymentState.waiting_for_config_name)
+    await state.update_data(plan_id=plan_id)
+    
+    text = (
+        "✏️ **Enter your preferred config name:**\n\n"
+        "⚠️ *Rules:*\n"
+        "- Between 3 and 32 characters\n"
+        "- Only lowercase letters (a-z), numbers (0-9), and underscores (_)\n"
+        "- NO spaces or special symbols."
+    ) if lang == "en" else (
+        "✏️ **نام دلخواه کانفیگ خود را وارد کنید:**\n\n"
+        "⚠️ *قوانین:*\n"
+        "- بین ۳ تا ۳۲ کاراکتر\n"
+        "- فقط حروف کوچک انگلیسی (a-z)، اعداد (0-9) و خط تیره پایین (_)\n"
+        "- بدون فاصله یا علائم نگارشی."
+    )
+    
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Skip" if lang == "en" else "🔙 رد شدن", callback_data=f"skip_cname_{plan_id}")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
+
+import re
+
+@router.message(F.text, FSMContext, flags={"state": "PaymentState:waiting_for_config_name"})
+async def process_custom_name_input(message: Message, state: FSMContext):
+    # This handler needs to be registered with the FSM state. We explicitly check state.
+    current_state = await state.get_state()
+    from payment_handlers import PaymentState
+    if current_state != PaymentState.waiting_for_config_name.state:
+        return
+
+    lang = await get_user_lang(message.from_user.id)
+    data = await state.get_data()
+    plan_id = data.get("plan_id")
+    
+    config_name = message.text.strip().lower()
+    
+    # Validate against Marzban rules
+    if not re.match(r"^[a-z0-9_]{3,32}$", config_name):
+        error_msg = (
+            "❌ **Invalid Name!**\n\n"
+            "Please ensure it is 3-32 characters long, and contains only a-z, 0-9, or underscores (_)."
+        ) if lang == "en" else (
+            "❌ **نام نامعتبر!**\n\n"
+            "لطفاً مطمئن شوید طول نام ۳ تا ۳۲ کاراکتر است و فقط شامل حروف انگلیسی، اعداد یا (_) می‌باشد."
+        )
+        await message.answer(error_msg, parse_mode="Markdown")
+        return
+        
+    await state.update_data(config_name=config_name)
+    await show_payment_methods(message, plan_id, lang)
+
+@router.callback_query(F.data.startswith("skip_cname_"))
+async def process_skip_custom_name(callback: CallbackQuery, state: FSMContext):
+    plan_id = callback.data.split("_")[-1]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    # Clear config_name from state if they backtrack and skip
+    await state.update_data(config_name="")
+    await show_payment_methods(callback, plan_id, lang)
 
 @router.callback_query(F.data == "profile")
 async def process_profile(callback: CallbackQuery):

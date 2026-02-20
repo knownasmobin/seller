@@ -15,6 +15,7 @@ type CreateOrderRequest struct {
 	TelegramID    int64   `json:"telegram_id"`
 	PlanID        uint    `json:"plan_id"`
 	EndpointID    uint    `json:"endpoint_id"` // WireGuard endpoint selection
+	ConfigName    string  `json:"config_name"`
 	PaymentMethod string  `json:"payment_method"`
 	Amount        float64 `json:"amount"`
 }
@@ -51,6 +52,7 @@ func CreateOrder(c *fiber.Ctx) error {
 		UserID:        user.ID,
 		PlanID:        plan.ID,
 		EndpointID:    req.EndpointID,
+		ConfigName:    req.ConfigName,
 		Amount:        req.Amount,
 		PaymentMethod: req.PaymentMethod,
 		PaymentStatus: "pending",

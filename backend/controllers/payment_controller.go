@@ -259,7 +259,12 @@ func provisionVPNForOrder(order *models.Order) error {
 
 			client := vpn.NewMarzbanClient(server.APIUrl, marzbanUser, marzbanPass)
 
-			username := fmt.Sprintf("user_%d_%d", user.TelegramID, order.ID)
+			var username string
+			if order.ConfigName != "" {
+				username = order.ConfigName
+			} else {
+				username = fmt.Sprintf("user_%d_%d", user.TelegramID, order.ID)
+			}
 			uuidStr = username
 			expireTime := time.Now().AddDate(0, 0, plan.DurationDays).Unix()
 

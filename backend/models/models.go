@@ -47,6 +47,7 @@ type Order struct {
 	UserID        uint           `json:"user_id"`
 	PlanID        uint           `json:"plan_id"`
 	EndpointID    uint           `json:"endpoint_id"` // For WireGuard endpoint selection
+	ConfigName    string         `gorm:"size:50" json:"config_name"`
 	Amount        float64        `json:"amount"`
 	PaymentMethod string         `gorm:"size:20" json:"payment_method"`
 	PaymentStatus string         `gorm:"size:20;default:'pending'" json:"payment_status"`
