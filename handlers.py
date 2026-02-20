@@ -515,34 +515,29 @@ async def process_support_message(message: Message, state: FSMContext, bot):
         f"<i>Reply directly to this user's message using the bot to answer them.</i>"
     )
 
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    admin_markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Close Ticket", callback_data=f"close_ticket_{message.from_user.id}")]
-    ])
-
     success = False
     for admin_id in admin_ids:
         try:
-            await bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML", reply_markup=admin_markup)
+            await bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
             success = True
         except Exception as e:
             logging.error(f"Failed to forward support message to {admin_id}: {e}")
 
     if success:
         reply_text = (
-            "✅ <b>Delivered!</b>\n\n"
-            "Your message was sent to our team. \n<i>You can type another message to continue the thread, or click End Chat when you are done.</i>"
+            "✅ <b>Message Sent!</b>\n\n"
+            "Your message has been forwarded to our support team. We will reply as soon as possible."
         ) if lang == "en" else (
-            "✅ <b>ارسال شد!</b>\n\n"
-            "پیام شما به تیم ما ارسال گردید. \n<i>برای ادامه گفتگو پیام دیگری بفرستید، یا برای پایان گفتگو روی دکمه زیر کلیک کنید.</i>"
+            "✅ <b>پیام ارسال شد!</b>\n\n"
+            "پیام شما به تیم پشتیبانی ارسال گردید. به زودی به شما پاسخ خواهیم داد."
         )
     else:
         reply_text = "❌ Error sending message. Please try again later." if lang == "en" else "❌ خطا در ارسال پیام. لطفا بعدا تلاش کنید."
 
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ End Chat" if lang == "en" else "❌ پایان گفتگو", callback_data="main_menu")]
-    ])
+    from keyboards import get_main_menu
+    is_admin = str(message.from_user.id) in admin_ids
+    markup = get_main_menu(lang, is_admin=is_admin)
     
     await message.answer(reply_text, parse_mode="HTML", reply_markup=markup)
-    # We DO NOT clear state here so the user can send follow-up messages.
+    await state.clear()

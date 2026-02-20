@@ -178,45 +178,22 @@ async def process_admin_reply(message: types.Message, bot):
         return
         
     # Format the message for the user
-    user_lang = "en" # We don't have user_lang readily here without a DB fetch, default to english or bilingual
     response_to_user = (
         f"🎧 <b>Message from Support / پیام از طرف پشتیبانی</b>\n\n"
         f"<i>{admin_response}</i>"
     )
     
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Reply / پاسخ", callback_data="support_menu")]
+    ])
+    
     try:
-        await bot.send_message(chat_id=target_user_id, text=response_to_user, parse_mode="HTML")
+        await bot.send_message(chat_id=target_user_id, text=response_to_user, parse_mode="HTML", reply_markup=markup)
         await message.reply("✅ <b>Reply successfully sent to the user!</b>", parse_mode="HTML")
     except Exception as e:
         logging.error(f"Failed to send admin reply to user {target_user_id}: {e}")
         await message.reply(f"❌ <b>Error:</b> Could not send message to user. They might have blocked the bot.\n\nDetails: {e}", parse_mode="HTML")
-
-@router.callback_query(F.data.startswith("close_ticket_"))
-async def process_close_ticket(callback: types.CallbackQuery, bot, state: FSMContext):
-    target_user_id = int(callback.data.split("_")[-1])
-    
-    # Instantiating the user's FSM context to clear it
-    storage_key = StorageKey(bot_id=bot.id, chat_id=target_user_id, user_id=target_user_id)
-    user_context = FSMContext(storage=state.storage, key=storage_key)
-    await user_context.clear()
-    
-    # Notify admin
-    try:
-        await callback.message.edit_reply_markup(reply_markup=None)
-    except Exception:
-        pass
-    await callback.message.reply(f"✅ <b>Ticket for User {target_user_id} has been closed.</b>", parse_mode="HTML")
-    
-    # Notify user
-    try:
-        await bot.send_message(
-            chat_id=target_user_id, 
-            text="ℹ️ <b>Your support ticket has been closed by an admin.</b>\n\nReturning to Main Menu...", 
-            parse_mode="HTML"
-        )
-    except Exception:
-        pass
-    await callback.answer("Ticket closed.")
 
 @router.callback_query(F.data.startswith("admin_editplan_"))
 async def edit_plan_menu(callback: types.CallbackQuery, state: FSMContext):
