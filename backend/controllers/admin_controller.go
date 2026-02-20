@@ -29,7 +29,7 @@ func GetAdminStats(c *fiber.Ctx) error {
 	database.DB.Model(&models.Order{}).Count(&totalOrders)
 
 	var paidOrders int64
-	database.DB.Model(&models.Order{}).Where("payment_status = ?", "paid").Count(&paidOrders)
+	database.DB.Model(&models.Order{}).Where("payment_status IN (?)", []string{"paid", "approved"}).Count(&paidOrders)
 
 	var pendingOrders int64
 	database.DB.Model(&models.Order{}).Where("payment_status = ?", "pending").Count(&pendingOrders)
@@ -40,12 +40,12 @@ func GetAdminStats(c *fiber.Ctx) error {
 	var activeSubscriptions int64
 	database.DB.Model(&models.Subscription{}).Where("status = ? AND expiry_date > ?", "active", time.Now()).Count(&activeSubscriptions)
 
-	// Revenue
+	// Revenue — orders can be status "paid" (crypto auto) or "approved" (card manual)
 	var totalRevenueIRR float64
-	database.DB.Model(&models.Order{}).Where("payment_status = ? AND payment_method = ?", "paid", "card").Select("COALESCE(SUM(amount), 0)").Scan(&totalRevenueIRR)
+	database.DB.Model(&models.Order{}).Where("payment_status IN (?) AND payment_method = ?", []string{"paid", "approved"}, "card").Select("COALESCE(SUM(amount), 0)").Scan(&totalRevenueIRR)
 
 	var totalRevenueUSDT float64
-	database.DB.Model(&models.Order{}).Where("payment_status = ? AND payment_method = ?", "paid", "crypto").Select("COALESCE(SUM(amount), 0)").Scan(&totalRevenueUSDT)
+	database.DB.Model(&models.Order{}).Where("payment_status IN (?) AND payment_method = ?", []string{"paid", "approved"}, "crypto").Select("COALESCE(SUM(amount), 0)").Scan(&totalRevenueUSDT)
 
 	// Recent orders (last 10)
 	type RecentOrder struct {

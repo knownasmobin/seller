@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, Check, ToggleLeft, ToggleRight } from 'lucide-react'
 
-// Adjust this URL to point to your Go Backend if not served on the same domain
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export default function Plans() {
     const [plans, setPlans] = useState([])
     const [loading, setLoading] = useState(true)
+    const [editingId, setEditingId] = useState(null)
+    const [editData, setEditData] = useState({})
 
-    // New Plan Form State
     const [showAddForm, setShowAddForm] = useState(false)
     const [newPlan, setNewPlan] = useState({
         server_type: 'v2ray',
@@ -19,9 +19,7 @@ export default function Plans() {
         is_active: true
     })
 
-    useEffect(() => {
-        fetchPlans()
-    }, [])
+    useEffect(() => { fetchPlans() }, [])
 
     const fetchPlans = async () => {
         try {
@@ -45,10 +43,70 @@ export default function Plans() {
             })
             if (res.ok) {
                 setShowAddForm(false)
+                setNewPlan({ server_type: 'v2ray', duration_days: 30, data_limit_gb: 50, price_irr: 0, price_usdt: 0, is_active: true })
                 fetchPlans()
             }
         } catch (err) {
             console.error("Failed to create plan", err)
+        }
+    }
+
+    const startEdit = (plan) => {
+        setEditingId(plan.ID)
+        setEditData({
+            duration_days: plan.duration_days,
+            data_limit_gb: plan.data_limit_gb,
+            price_irr: plan.price_irr,
+            price_usdt: plan.price_usdt,
+        })
+    }
+
+    const cancelEdit = () => {
+        setEditingId(null)
+        setEditData({})
+    }
+
+    const saveEdit = async (id) => {
+        try {
+            const res = await fetch(`${API_URL}/plans/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editData)
+            })
+            if (res.ok) {
+                setEditingId(null)
+                fetchPlans()
+            }
+        } catch (err) {
+            console.error("Failed to update plan", err)
+        }
+    }
+
+    const toggleActive = async (plan) => {
+        try {
+            await fetch(`${API_URL}/plans/${plan.ID}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: !plan.is_active })
+            })
+            fetchPlans()
+        } catch (err) {
+            console.error("Failed to toggle plan", err)
+        }
+    }
+
+    const deletePlan = async (id) => {
+        if (!confirm('Are you sure you want to delete this plan?')) return
+        try {
+            // We disable it instead of deleting to preserve order history
+            await fetch(`${API_URL}/plans/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: false })
+            })
+            fetchPlans()
+        } catch (err) {
+            console.error("Failed to delete plan", err)
         }
     }
 
@@ -93,49 +151,114 @@ export default function Plans() {
                             <input type="number" step="0.01" className="input-field" value={newPlan.price_usdt} onChange={(e) => setNewPlan({ ...newPlan, price_usdt: parseFloat(e.target.value) })} />
                         </div>
                         <div className="flex items-center" style={{ width: '100%', marginTop: '16px' }}>
-                            <button type="submit" className="btn btn-success" style={{ background: 'var(--success)', border: 'none', color: 'white' }}>Save Plan</button>
+                            <button type="submit" className="btn" style={{ background: 'var(--success)', border: 'none', color: 'white' }}>Save Plan</button>
                         </div>
                     </form>
                 </div>
             )}
 
             <div className="glass" style={{ overflow: 'hidden', animation: 'slideUpFade 0.6s 0.2s both' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <table>
                     <thead>
-                        <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderBottom: '1px solid var(--glass-border)' }}>
-                            <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>ID</th>
-                            <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>Type</th>
-                            <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>Duration</th>
-                            <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>Data Limit</th>
-                            <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>Price</th>
-                            <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>Status</th>
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Duration</th>
+                            <th>Data Limit</th>
+                            <th>Price (IRR)</th>
+                            <th>Price (USDT)</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center' }}>Loading...</td></tr>
+                            <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Loading...</td></tr>
                         ) : plans.length === 0 ? (
-                            <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>No plans created yet.</td></tr>
+                            <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No plans created yet.</td></tr>
                         ) : (
                             plans.map(plan => (
-                                <tr key={plan.ID} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                                    <td style={{ padding: '16px 24px' }}>#{plan.ID}</td>
-                                    <td style={{ padding: '16px 24px' }}>
-                                        <span className={plan.server_type === 'v2ray' ? 'badge badge-primary' : 'badge badge-warning'} style={{
-                                            background: plan.server_type === 'v2ray' ? 'rgba(79, 70, 229, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                            color: plan.server_type === 'v2ray' ? 'var(--primary)' : 'var(--warning)',
-                                            border: plan.server_type === 'v2ray' ? '1px solid rgba(79, 70, 229, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)'
-                                        }}>
+                                <tr key={plan.ID}>
+                                    <td>#{plan.ID}</td>
+                                    <td>
+                                        <span className={`badge ${plan.server_type === 'v2ray' ? 'badge-primary' : 'badge-warning'}`}>
                                             {plan.server_type.toUpperCase()}
                                         </span>
                                     </td>
-                                    <td style={{ padding: '16px 24px' }}>{plan.duration_days} Days</td>
-                                    <td style={{ padding: '16px 24px' }}>{plan.data_limit_gb} GB</td>
-                                    <td style={{ padding: '16px 24px' }}>{plan.price_irr.toLocaleString()} IRR / ${plan.price_usdt}</td>
-                                    <td style={{ padding: '16px 24px' }}>
-                                        <span className={plan.is_active ? 'badge badge-success' : 'badge badge-danger'}>
-                                            {plan.is_active ? 'Active' : 'Disabled'}
-                                        </span>
+
+                                    {/* Duration */}
+                                    <td>
+                                        {editingId === plan.ID ? (
+                                            <input type="number" className="input-field" style={{ width: '80px', padding: '6px 10px' }}
+                                                value={editData.duration_days} onChange={(e) => setEditData({ ...editData, duration_days: parseInt(e.target.value) })} />
+                                        ) : (
+                                            `${plan.duration_days} Days`
+                                        )}
+                                    </td>
+
+                                    {/* Data Limit */}
+                                    <td>
+                                        {editingId === plan.ID ? (
+                                            <input type="number" className="input-field" style={{ width: '80px', padding: '6px 10px' }}
+                                                value={editData.data_limit_gb} onChange={(e) => setEditData({ ...editData, data_limit_gb: parseInt(e.target.value) })} />
+                                        ) : (
+                                            `${plan.data_limit_gb} GB`
+                                        )}
+                                    </td>
+
+                                    {/* Price IRR */}
+                                    <td>
+                                        {editingId === plan.ID ? (
+                                            <input type="number" className="input-field" style={{ width: '120px', padding: '6px 10px' }}
+                                                value={editData.price_irr} onChange={(e) => setEditData({ ...editData, price_irr: parseFloat(e.target.value) })} />
+                                        ) : (
+                                            plan.price_irr.toLocaleString()
+                                        )}
+                                    </td>
+
+                                    {/* Price USDT */}
+                                    <td>
+                                        {editingId === plan.ID ? (
+                                            <input type="number" step="0.01" className="input-field" style={{ width: '100px', padding: '6px 10px' }}
+                                                value={editData.price_usdt} onChange={(e) => setEditData({ ...editData, price_usdt: parseFloat(e.target.value) })} />
+                                        ) : (
+                                            `$${plan.price_usdt}`
+                                        )}
+                                    </td>
+
+                                    {/* Status */}
+                                    <td>
+                                        <button onClick={() => toggleActive(plan)} className="btn" style={{
+                                            background: 'transparent', border: 'none', padding: '4px 8px', cursor: 'pointer',
+                                            color: plan.is_active ? 'var(--success)' : 'var(--danger)'
+                                        }}>
+                                            {plan.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                                        </button>
+                                    </td>
+
+                                    {/* Actions */}
+                                    <td>
+                                        <div className="flex gap-4" style={{ gap: '8px' }}>
+                                            {editingId === plan.ID ? (
+                                                <>
+                                                    <button onClick={() => saveEdit(plan.ID)} className="btn" style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)', padding: '6px 12px' }}>
+                                                        <Check size={16} />
+                                                    </button>
+                                                    <button onClick={cancelEdit} className="btn" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)', padding: '6px 12px' }}>
+                                                        <X size={16} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => startEdit(plan)} className="btn" style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', border: '1px solid rgba(99,102,241,0.2)', padding: '6px 12px' }}>
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                    <button onClick={() => deletePlan(plan.ID)} className="btn" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)', padding: '6px 12px' }}>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
