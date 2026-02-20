@@ -209,7 +209,7 @@ async def process_reject_order(callback: CallbackQuery, bot):
             await callback.answer("❌ Backend connection error", show_alert=True)
 
 @router.callback_query(F.data.startswith("pay_crypto_"))
-async def process_crypto_payment(callback: CallbackQuery):
+async def process_crypto_payment(callback: CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
     plan_id = parts[2]
     endpoint_id = int(parts[3]) if len(parts) > 3 else 0
