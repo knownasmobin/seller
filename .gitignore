@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Go
+backend/api-server
+backend/vpn-api.exe
+backend/tmp.exe
+
+# Database
+backend_data/
+*.db
+
+# IDEs
+.idea/
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
