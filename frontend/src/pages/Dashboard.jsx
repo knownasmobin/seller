@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Activity, Users, ShoppingCart, Server, ArrowUpRight, DollarSign, Clock } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export default function Dashboard() {
     const [stats, setStats] = useState(null)

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 
 // Adjust this URL to point to your Go Backend if not served on the same domain
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export default function Plans() {
     const [plans, setPlans] = useState([])
