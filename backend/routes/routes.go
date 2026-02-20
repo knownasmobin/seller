@@ -52,4 +52,9 @@ func SetupRoutes(router fiber.Router) {
 	endpoints.Post("/", controllers.CreateEndpoint)
 	endpoints.Patch("/:id", controllers.UpdateEndpoint)
 	endpoints.Delete("/:id", controllers.DeleteEndpoint)
+
+	// Admin Routes
+	admin := router.Group("/admin")
+	admin.Get("/stats", controllers.GetAdminStats)
+	admin.Post("/broadcast", controllers.BroadcastMessage)
 }

@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Server, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, Server, Users, LogOut, Send } from 'lucide-react';
 
 export default function Sidebar({ onLogout }) {
     const navItems = [
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} /> },
         { name: 'Active Plans', path: '/plans', icon: <Server size={20} /> },
         { name: 'User Orders', path: '/orders', icon: <Users size={20} /> },
+        { name: 'Broadcast', path: '/broadcast', icon: <Send size={20} /> },
     ];
 
     return (

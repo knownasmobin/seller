@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Plans from './pages/Plans'
 import Orders from './pages/Orders'
+import Broadcast from './pages/Broadcast'
 import Sidebar from './components/Sidebar'
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/orders" element={<Orders />} />
+            <Route path="/broadcast" element={<Broadcast />} />
           </Routes>
         </main>
       </div>

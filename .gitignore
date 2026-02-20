@@ -24,3 +24,7 @@ Thumbs.db
 example.conf
 test.conf
 v1_swagger.yaml
+
+# External repos
+wg-portal/
+vpn/
