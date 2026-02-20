@@ -515,29 +515,34 @@ async def process_support_message(message: Message, state: FSMContext, bot):
         f"<i>Reply directly to this user's message using the bot to answer them.</i>"
     )
 
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    admin_markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Close Ticket", callback_data=f"close_ticket_{message.from_user.id}")]
+    ])
+
     success = False
     for admin_id in admin_ids:
         try:
-            await bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
+            await bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML", reply_markup=admin_markup)
             success = True
         except Exception as e:
             logging.error(f"Failed to forward support message to {admin_id}: {e}")
 
     if success:
         reply_text = (
-            "✅ <b>Message Sent!</b>\n\n"
-            "Your message has been forwarded to our support team. We will reply as soon as possible."
+            "✅ <b>Delivered!</b>\n\n"
+            "Your message was sent to our team. \n<i>You can type another message to continue the thread, or click End Chat when you are done.</i>"
         ) if lang == "en" else (
-            "✅ <b>پیام ارسال شد!</b>\n\n"
-            "پیام شما به تیم پشتیبانی ارسال گردید. به زودی به شما پاسخ خواهیم داد."
+            "✅ <b>ارسال شد!</b>\n\n"
+            "پیام شما به تیم ما ارسال گردید. \n<i>برای ادامه گفتگو پیام دیگری بفرستید، یا برای پایان گفتگو روی دکمه زیر کلیک کنید.</i>"
         )
     else:
         reply_text = "❌ Error sending message. Please try again later." if lang == "en" else "❌ خطا در ارسال پیام. لطفا بعدا تلاش کنید."
 
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Main Menu" if lang == "en" else "🔙 منوی اصلی", callback_data="main_menu")]
+        [InlineKeyboardButton(text="❌ End Chat" if lang == "en" else "❌ پایان گفتگو", callback_data="main_menu")]
     ])
     
     await message.answer(reply_text, parse_mode="HTML", reply_markup=markup)
-    await state.clear()
+    # We DO NOT clear state here so the user can send follow-up messages.
