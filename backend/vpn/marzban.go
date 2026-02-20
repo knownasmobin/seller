@@ -93,11 +93,27 @@ func (m *MarzbanClient) CreateUser(username string, dataLimitGB float64, expireU
 	}
 
 	payload := map[string]interface{}{
-		"username":   username,
-		"proxies":    map[string]interface{}{"vless": map[string]interface{}{}, "vmess": map[string]interface{}{}},
-		"data_limit": dataLimit,
-		"expire":     expireUnixTs,
-		"status":     "active",
+		"username":                  username,
+		"status":                    "active",
+		"data_limit":                dataLimit,
+		"expire":                    expireUnixTs,
+		"data_limit_reset_strategy": "no_reset",
+		"proxies": map[string]interface{}{
+			"vmess":  map[string]interface{}{},
+			"trojan": map[string]interface{}{},
+			"vless": map[string]interface{}{
+				"flow": "",
+			},
+			"shadowsocks": map[string]interface{}{
+				"method": "chacha20-ietf-poly1305",
+			},
+		},
+		"inbounds": map[string]interface{}{
+			"vmess":       []string{"VMess TCP", "VMess Websocket"},
+			"trojan":      []string{"Trojan TCP"},
+			"vless":       []string{"VLess TCP"},
+			"shadowsocks": []string{"Shadowsocks TCP"},
+		},
 	}
 
 	jsonData, err := json.Marshal(payload)
