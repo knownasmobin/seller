@@ -110,26 +110,80 @@ async def process_my_configs(callback: CallbackQuery):
                 expiry = sub.get("expiry_date", "")[:10] if sub.get("expiry_date") else "N/A"
                 link = sub.get("config_link", "")
                 sub_id = sub.get("ID")
+
+                # Fix doubled URLs from old bug (e.g. "https://x.comhttps://x.com/sub/...")
+                if link and link.startswith("http"):
+                    idx = link.find("http", 1)
+                    if idx > 0:
+                        link = link[idx:]
+
                 is_wg = link and (link.startswith("#") or "[Interface]" in link)
                 
                 if is_wg:
                     link_text = "👇 Tap 'Get Config' below to select location &amp; download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
                     buttons.append([InlineKeyboardButton(text=f"🌍 Download Config #{index}", callback_data=f"get_wg_{sub_id}")])
                 elif link:
-                    link_text = f"<code>{link}</code>"
+                    link_text = "👇 Tap 'Get Connection Link' below." if lang == "en" else "👇 برای دریافت لینک اتصال روی دکمه زیر کلیک کنید."
+                    buttons.append([InlineKeyboardButton(text=f"🔗 Get Connection Link #{index}" if lang == "en" else f"🔗 دریافت لینک اتصال #{index}", callback_data=f"get_v2ray_link_{sub_id}")])
                 else:
                     link_text = "Processing..."
 
                 if lang == "en":
-                    text += f"🔹 <b>Config {index}</b> ({status})\n📅 <b>Expires:</b> {expiry}\n🔗 {link_text}\n\n"
+                    text += f"🔹 <b>Config {index}</b> ({status})\n📅 <b>Expires:</b> {expiry}\nℹ️ {link_text}\n\n"
                 else:
-                    text += f"🔹 <b>سرویس {index}</b> ({status})\n📅 <b>انقضا:</b> {expiry}\n🔗 {link_text}\n\n"
+                    text += f"🔹 <b>سرویس {index}</b> ({status})\n📅 <b>انقضا:</b> {expiry}\nℹ️ {link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
             await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             logging.error(f"[MyConfigs] Error for user {callback.from_user.id}: {e}")
+            await callback.answer("Backend error.", show_alert=True)
+
+@router.callback_query(F.data.startswith("get_v2ray_link_"))
+async def process_get_v2ray_link(callback: CallbackQuery):
+    sub_id = callback.data.split("_")[-1]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions")
+            subs = resp.json()
+            
+            link = ""
+            for sub in subs:
+                if str(sub.get("ID")) == sub_id:
+                    link = sub.get("config_link", "")
+                    break
+            
+            if not link:
+                msg = "Connection link not found." if lang == "en" else "لینک اتصال یافت نشد."
+                await callback.answer(msg, show_alert=True)
+                return
+
+            # Fix doubled URLs if present
+            if link.startswith("http"):
+                idx = link.find("http", 1)
+                if idx > 0:
+                    link = link[idx:]
+
+            text = (
+                f"🔗 <b>Your Connection Link:</b>\n\n"
+                f"<code>{link}</code>\n\n"
+                f"💡 <i>Copy the link above and import it into your V2Ray/v2rayNG app.</i>"
+            ) if lang == "en" else (
+                f"🔗 <b>لینک اتصال شما:</b>\n\n"
+                f"<code>{link}</code>\n\n"
+                f"💡 <i>لینک بالا را کپی کرده و در برنامه V2Ray/v2rayNG خود وارد کنید.</i>"
+            )
+            
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Back to My Configs" if lang == "en" else "🔙 بازگشت به سرویس‌های من", callback_data="my_configs")]
+            ])
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        except Exception as e:
+            logging.error(f"[GetV2RayLink] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Backend error.", show_alert=True)
 
 @router.callback_query(F.data == "main_menu")

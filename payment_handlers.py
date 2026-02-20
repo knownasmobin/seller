@@ -100,11 +100,20 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
                     logging.error(f"Could not submit to admin {admin_id}: {e}")
 
             text = "✅ Receipt received! We will verify it shortly and send your config." if lang == "en" else "✅ رسید دریافت شد! پس از تایید مدیریت کانفیگ شما ارسال خواهد شد."
-            await message.answer(text)
+            
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Main Menu" if lang == "en" else "🔙 منوی اصلی", callback_data="main_menu")]
+            ])
+            await message.answer(text, reply_markup=markup)
             await state.clear()
         except Exception as e:
             text = "❌ Error processing your request." if lang == "en" else "❌ خطا در پردازش درخواست شما."
-            await message.answer(text)
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Main Menu" if lang == "en" else "🔙 منوی اصلی", callback_data="main_menu")]
+            ])
+            await message.answer(text, reply_markup=markup)
             await state.clear()
 
 @router.callback_query(F.data.startswith("approve_order_"))
