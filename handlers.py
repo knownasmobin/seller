@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery
 from keyboards import get_protocol_menu
 import httpx
 import os
+import logging
 from utils import get_user_lang
 
 router = Router()
@@ -91,7 +92,7 @@ async def process_my_configs(callback: CallbackQuery):
             resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions")
             subs = resp.json()
             
-            if not subs:
+            if not subs or not isinstance(subs, list):
                 text = "You don't have any active configs." if lang == "en" else "شما هیچ کانفیگ فعالی ندارید."
                 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                 markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -100,32 +101,37 @@ async def process_my_configs(callback: CallbackQuery):
                 await callback.message.edit_text(text, reply_markup=markup)
                 return
             
-            text = "🔑 **Your Configs:**\n\n" if lang == "en" else "🔑 **سرویس‌های شما:**\n\n"
+            text = "🔑 *Your Configs:*\n\n" if lang == "en" else "🔑 *سرویس‌های شما:*\n\n"
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             buttons = []
             
             for index, sub in enumerate(subs, 1):
                 status = sub.get("status", "unknown")
-                expiry = sub.get("expiry_date", "")[:10]
-                link = sub.get("config_link", "Processing...")
+                expiry = sub.get("expiry_date", "")[:10] if sub.get("expiry_date") else "N/A"
+                link = sub.get("config_link", "")
                 sub_id = sub.get("ID")
-                is_wg = link.startswith("#") or "[Interface]" in link
+                is_wg = link and (link.startswith("#") or "[Interface]" in link)
                 
                 if is_wg:
                     link_text = "👇 Tap 'Get Config' below to select location & download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
                     buttons.append([InlineKeyboardButton(text=f"🌍 Download Config #{index}", callback_data=f"get_wg_{sub_id}")])
+                elif link:
+                    # Escape Markdown special characters in the link
+                    safe_link = link.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("]", "\\]").replace("`", "\\`")
+                    link_text = f"`{safe_link}`"
                 else:
-                    link_text = f"`{link}`"
+                    link_text = "Processing..."
 
                 if lang == "en":
-                    text += f"🔹 **Config {index}** ({status})\n📅 **Expires:** {expiry}\n🔗 {link_text}\n\n"
+                    text += f"🔹 *Config {index}* ({status})\n📅 *Expires:* {expiry}\n🔗 {link_text}\n\n"
                 else:
-                    text += f"🔹 **سرویس {index}** ({status})\n📅 **انقضا:** {expiry}\n🔗 {link_text}\n\n"
+                    text += f"🔹 *سرویس {index}* ({status})\n📅 *انقضا:* {expiry}\n🔗 {link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
             await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
+            logging.error(f"[MyConfigs] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Backend error.", show_alert=True)
 
 @router.callback_query(F.data == "main_menu")

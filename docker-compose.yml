@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: sell_bot_backend
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # No public ports - only accessible internally via Docker network
+    # Frontend proxies /api/ through nginx, bot uses http://backend:3000
     volumes:
       - backend_data:/app/data
     environment:

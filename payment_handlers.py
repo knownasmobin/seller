@@ -9,7 +9,20 @@ from utils import get_user_lang
 
 router = Router()
 API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
-ADMIN_CARD_NUMBER = os.getenv("ADMIN_CARD_NUMBER", "1234-5678-9012-3456")
+
+async def get_card_number():
+    """Fetch card number from backend (dashboard-editable), fallback to env var."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{API_BASE_URL}/admin/settings", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                card = data.get("admin_card_number", "")
+                if card:
+                    return card
+    except Exception:
+        pass
+    return os.getenv("ADMIN_CARD_NUMBER", "1234-5678-9012-3456")
 
 class PaymentState(StatesGroup):
     waiting_for_screenshot = State()
@@ -24,13 +37,15 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     # Save plan ID and endpoint ID in context
     await state.update_data(plan_id=plan_id, endpoint_id=endpoint_id)
 
+    card_number = await get_card_number()
+
     text = (
         f"💳 Please transfer the amount to this card number:\n"
-        f" `{ADMIN_CARD_NUMBER}`\n\n"
+        f" `{card_number}`\n\n"
         f"After transferring, please send the screenshot of your receipt here."
     ) if lang == "en" else (
         f"💳 لطفا مبلغ را به این شماره کارت واریز کنید:\n"
-        f" `{ADMIN_CARD_NUMBER}`\n\n"
+        f" `{card_number}`\n\n"
         f"سپس اسکرین شات رسید پرداخت خود را همینجا ارسال کنید."
     )
     

@@ -55,6 +55,7 @@ func SetupRoutes(router fiber.Router) {
 
 	// Admin Auth (public - no middleware)
 	router.Post("/admin/login", controllers.AdminLogin)
+	router.Get("/admin/settings", controllers.GetSettings) // public for bot to read card number
 
 	// Admin Routes (protected by auth middleware)
 	admin := router.Group("/admin", controllers.AdminAuthMiddleware)
@@ -62,6 +63,5 @@ func SetupRoutes(router fiber.Router) {
 	admin.Post("/broadcast", controllers.BroadcastMessage)
 	admin.Get("/servers", controllers.GetServers)
 	admin.Patch("/servers/:id", controllers.UpdateServer)
-	admin.Get("/settings", controllers.GetSettings)
 	admin.Patch("/settings", controllers.UpdateSettings)
 }
