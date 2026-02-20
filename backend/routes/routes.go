@@ -36,6 +36,7 @@ func SetupRoutes(router fiber.Router) {
 	orders := router.Group("/orders")
 	orders.Post("/", controllers.CreateOrder)
 	orders.Post("/:id/approve", controllers.ApproveOrder)
+	orders.Post("/:id/manual_provision", controllers.ManualProvisionOrder)
 	orders.Post("/:id/reject", controllers.RejectOrder)
 	users.Get("/:telegram_id/orders", controllers.GetUserOrders) // Note attached to users group
 	users.Get("/:telegram_id/subscriptions", controllers.GetUserSubscriptions)

@@ -24,7 +24,7 @@ func NewWgPortalClient(baseURL, username, password string) *WgPortalClient {
 		Username: username,
 		Password: password,
 		Client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 60 * time.Second,
 		},
 	}
 }

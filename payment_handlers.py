@@ -26,6 +26,7 @@ async def get_card_number():
 
 class PaymentState(StatesGroup):
     waiting_for_screenshot = State()
+    waiting_for_manual_config = State()
 
 @router.callback_query(F.data.startswith("pay_card_"))
 async def process_card_payment(callback: CallbackQuery, state: FSMContext):
@@ -122,7 +123,7 @@ async def process_approve_order(callback: CallbackQuery, bot):
     
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/approve")
+            resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/approve", timeout=65.0)
             data = resp.json()
             
             if resp.status_code == 200:
@@ -131,14 +132,29 @@ async def process_approve_order(callback: CallbackQuery, bot):
                 )
                 await callback.answer("✅ Order approved! Config sent to user.", show_alert=True)
             else:
-                error_msg = data.get("error", data.get("message", "Unknown error"))
-                await callback.message.edit_caption(
-                    caption=callback.message.caption + f"\n\n⚠️ Approve issue: {error_msg}"
-                )
-                await callback.answer(f"Issue: {error_msg}", show_alert=True)
+                error_type = data.get("error", "")
+                error_msg = data.get("message", "Unknown error")
+                
+                if error_type == "provisioning_failed":
+                    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                    markup = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="⚙️ Set Manual Config", callback_data=f"manual_config_{order_id}")],
+                        [InlineKeyboardButton(text="❌ Reject Order instead", callback_data=f"reject_order_{order_id}")]
+                    ])
+                    # Update caption to show it failed to provision
+                    await callback.message.edit_caption(
+                        caption=callback.message.caption + "\n\n⚠️ **Provisioning Failed!** Server or API is down.",
+                        reply_markup=markup
+                    )
+                    await callback.answer(f"⚠️ Failed to provision config.", show_alert=True)
+                else:
+                    await callback.message.edit_caption(
+                        caption=callback.message.caption + f"\n\n⚠️ Approve issue: {error_msg}"
+                    )
+                    await callback.answer(f"Issue: {error_msg}", show_alert=True)
         except Exception as e:
             logging.error(f"Approve order error: {e}")
-            await callback.answer("❌ Backend connection error", show_alert=True)
+            await callback.answer("❌ Backend connection timeout/error", show_alert=True)
     
 @router.callback_query(F.data.startswith("reject_order_"))
 async def process_reject_order(callback: CallbackQuery, bot):
@@ -221,3 +237,48 @@ async def process_crypto_payment(callback: CallbackQuery):
         except Exception as e:
             error_text = "❌ Error connecting to payment gateway." if lang == "en" else "❌ خطا در ارتباط با درگاه پرداخت."
             await msg.edit_text(error_text)
+@router.callback_query(F.data.startswith("manual_config_"))
+async def process_manual_config_btn(callback: CallbackQuery, state: FSMContext):
+    order_id = callback.data.split("_")[-1]
+    await state.update_data(manual_order_id=order_id)
+    await state.set_state(PaymentState.waiting_for_manual_config)
+    
+    await callback.message.reply(
+        f"⚙️ **Manual Provisioning for Order #{order_id}**\n\n"
+        "Please type or paste the full connection link (e.g. `vless://...`) below:",
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@router.message(PaymentState.waiting_for_manual_config)
+async def process_manual_config_input(message: Message, state: FSMContext):
+    config_link = message.text.strip()
+    data = await state.get_data()
+    order_id = data.get("manual_order_id")
+
+    if not order_id:
+        await message.answer("❌ Error: Lost order context. Please click the 'Set Manual Config' button again.")
+        await state.clear()
+        return
+
+    wait_msg = await message.answer("🔄 Sending manual config to backend...")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{API_BASE_URL}/orders/{order_id}/manual_provision",
+                json={"config_link": config_link},
+                timeout=60.0
+            )
+            resp_data = resp.json()
+
+            if resp.status_code == 200:
+                await wait_msg.edit_text("✅ Config manually saved! The user has been notified.")
+            else:
+                error_msg = resp_data.get("error", "Unknown error")
+                await wait_msg.edit_text(f"❌ Failed to save config: {error_msg}")
+        except Exception as e:
+            logging.error(f"Manual provision error: {e}")
+            await wait_msg.edit_text("❌ Backend connection timeout/error.")
+
+    await state.clear()

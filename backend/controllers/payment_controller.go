@@ -67,7 +67,12 @@ func OxapayCallback(c *fiber.Ctx) error {
 	database.DB.Save(&order)
 
 	// Here we should provision the VPN, then optionally notify the bot.
-	provisionVPNForOrder(&order)
+	if err := provisionVPNForOrder(&order); err != nil {
+		log.Printf("[ERROR] OxaPay auto-provisioning failed for order %s: %v", payload.OrderID, err)
+		// We still return OK to OxaPay so they stop retrying the webhook,
+		// but the order's configLink isn't set, and admins will need to intervene.
+		// (Ideally we flag it for manual review).
+	}
 
 	return c.SendString("OK")
 }
@@ -92,11 +97,17 @@ func ApproveOrder(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"message": "Already approved"})
 	}
 
+	// Provision VPN and notify user
+	if err := provisionVPNForOrder(&order); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error":   "provisioning_failed",
+			"message": err.Error(),
+		})
+	}
+
+	// Only mark approved if we succeeded
 	order.PaymentStatus = "approved"
 	database.DB.Save(&order)
-
-	// Provision VPN and notify user
-	provisionVPNForOrder(&order)
 
 	// Find the user to return their telegram_id
 	var user models.User
@@ -104,6 +115,73 @@ func ApproveOrder(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message":     "Order approved and VPN provisioned",
+		"order_id":    order.ID,
+		"telegram_id": user.TelegramID,
+	})
+}
+
+// ManualProvisionRequest represents the payload for manual provisioning
+type ManualProvisionRequest struct {
+	ConfigLink string `json:"config_link"`
+}
+
+// ManualProvisionOrder allows an admin to supply a config link if auto-provisioning failed
+// @Summary Manually provision an order
+// @Description Admin sets config manually
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path int true "Order ID"
+// @Param request body ManualProvisionRequest true "Config Link"
+// @Success 200 {object} map[string]interface{}
+// @Router /orders/{id}/manual_provision [post]
+func ManualProvisionOrder(c *fiber.Ctx) error {
+	orderID := c.Params("id")
+
+	var req ManualProvisionRequest
+	if err := c.BodyParser(&req); err != nil || req.ConfigLink == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body or missing config_link"})
+	}
+
+	var order models.Order
+	if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Order not found"})
+	}
+
+	var plan models.Plan
+	if err := database.DB.Where("id = ?", order.PlanID).First(&plan).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Plan not found"})
+	}
+
+	var user models.User
+	database.DB.Where("id = ?", order.UserID).First(&user)
+
+	// In a complete implementation we might want to also fetch the server ID,
+	// but for manual fallback we can set server_id to 0 or leave empty.
+
+	uuidStr := fmt.Sprintf("manual_%d_%d", user.TelegramID, order.ID)
+
+	sub := models.Subscription{
+		UserID:     user.ID,
+		PlanID:     plan.ID,
+		ServerID:   0, // Manual flag
+		ConfigLink: req.ConfigLink,
+		UUID:       uuidStr,
+		StartDate:  time.Now(),
+		ExpiryDate: time.Now().AddDate(0, 0, plan.DurationDays),
+		Status:     "active",
+	}
+
+	database.DB.Create(&sub)
+
+	order.PaymentStatus = "approved"
+	database.DB.Save(&order)
+
+	// Notify Telegram Bot
+	notifyTelegramBot(user, sub, plan)
+
+	return c.JSON(fiber.Map{
+		"message":     "Order manually provisioned",
 		"order_id":    order.ID,
 		"telegram_id": user.TelegramID,
 	})
@@ -142,24 +220,24 @@ func RejectOrder(c *fiber.Ctx) error {
 }
 
 // provisionVPNForOrder provisions the account through Marzban or WgPortal and creates a Subscription.
-func provisionVPNForOrder(order *models.Order) {
+func provisionVPNForOrder(order *models.Order) error {
 	var plan models.Plan
 	if err := database.DB.Where("id = ?", order.PlanID).First(&plan).Error; err != nil {
 		log.Printf("[ERROR][Provision] Failed to find plan (ID: %d) for order (ID: %d): %v\n", order.PlanID, order.ID, err)
-		return
+		return fmt.Errorf("plan not found")
 	}
 
 	var user models.User
 	if err := database.DB.Where("id = ?", order.UserID).First(&user).Error; err != nil {
 		log.Printf("[ERROR][Provision] Failed to find user (ID: %d) for order (ID: %d): %v\n", order.UserID, order.ID, err)
-		return
+		return fmt.Errorf("user not found")
 	}
 
 	// Fetch server logic could be more complex, we just pick the first active one for the given server type
 	var server models.Server
 	if err := database.DB.Where("server_type = ? AND is_active = ?", plan.ServerType, true).First(&server).Error; err != nil {
 		log.Printf("[ERROR][Provision] No active %s server found in database.\n", plan.ServerType)
-		return // in production, maybe refund or alert admin
+		return fmt.Errorf("no active server for type %s", plan.ServerType)
 	}
 
 	configLink := ""
@@ -168,43 +246,60 @@ func provisionVPNForOrder(order *models.Order) {
 	var creds map[string]string
 	if err := json.Unmarshal([]byte(server.Credentials), &creds); err != nil {
 		log.Printf("[ERROR][Provision] Invalid server credentials JSON for server ID %d: %v\n", server.ID, err)
-		return
+		return fmt.Errorf("invalid server credentials")
 	}
 
-	if plan.ServerType == "v2ray" {
-		marzbanUser := creds["username"]
-		marzbanPass := creds["password"]
+	maxRetries := 3
+	var lastErr error
 
-		client := vpn.NewMarzbanClient(server.APIUrl, marzbanUser, marzbanPass)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if plan.ServerType == "v2ray" {
+			marzbanUser := creds["username"]
+			marzbanPass := creds["password"]
 
-		username := fmt.Sprintf("user_%d_%d", user.TelegramID, order.ID)
-		uuidStr = username
-		expireTime := time.Now().AddDate(0, 0, plan.DurationDays).Unix()
+			client := vpn.NewMarzbanClient(server.APIUrl, marzbanUser, marzbanPass)
 
-		subLink, err := client.CreateUser(username, plan.DataLimitGB, expireTime)
-		if err == nil {
-			// Marzban may return a full URL or a relative path like /sub/username/
-			if strings.HasPrefix(subLink, "http") {
-				configLink = subLink
+			username := fmt.Sprintf("user_%d_%d", user.TelegramID, order.ID)
+			uuidStr = username
+			expireTime := time.Now().AddDate(0, 0, plan.DurationDays).Unix()
+
+			subLink, err := client.CreateUser(username, plan.DataLimitGB, expireTime)
+			if err == nil {
+				// Marzban may return a full URL or a relative path like /sub/username/
+				if strings.HasPrefix(subLink, "http") {
+					configLink = subLink
+				} else {
+					configLink = fmt.Sprintf("%s%s", strings.TrimRight(server.APIUrl, "/"), subLink)
+				}
+				break // Success
 			} else {
-				configLink = fmt.Sprintf("%s%s", strings.TrimRight(server.APIUrl, "/"), subLink)
+				lastErr = err
+				log.Printf("[ERROR][Provision][Marzban] Attempt %d failed. User: %s, Err: %v\n", attempt, username, err)
 			}
-		} else {
-			log.Printf("[ERROR][Provision][Marzban] User Create Failed. URL: %s, User: %s, Err: %v\n", server.APIUrl, username, err)
-		}
-	} else if plan.ServerType == "wireguard" {
-		wgUser := creds["username"]
-		wgPass := creds["password"]
+		} else if plan.ServerType == "wireguard" {
+			wgUser := creds["username"]
+			wgPass := creds["password"]
 
-		client := vpn.NewWgPortalClient(server.APIUrl, wgUser, wgPass)
-		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
-		uuidStr = username
-		if peerConf, err := client.CreatePeer(username); err == nil {
-			configLink = peerConf
-			log.Println("Created WG Peer:", username)
-		} else {
-			log.Printf("[ERROR][Provision][WgPortal] Peer Create Failed. URL: %s, User: %s, Err: %v\n", server.APIUrl, username, err)
+			client := vpn.NewWgPortalClient(server.APIUrl, wgUser, wgPass)
+			username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
+			uuidStr = username
+			if peerConf, err := client.CreatePeer(username); err == nil {
+				configLink = peerConf
+				log.Println("Created WG Peer:", username)
+				break // Success
+			} else {
+				lastErr = err
+				log.Printf("[ERROR][Provision][WgPortal] Attempt %d failed. User: %s, Err: %v\n", attempt, username, err)
+			}
 		}
+
+		if attempt < maxRetries {
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	if configLink == "" {
+		return fmt.Errorf("provisioning failed after %d attempts: %v", maxRetries, lastErr)
 	}
 
 	sub := models.Subscription{
@@ -227,6 +322,8 @@ func provisionVPNForOrder(order *models.Order) {
 
 	// Try notifying Bot to send message back to User
 	notifyTelegramBot(user, sub, plan)
+
+	return nil
 }
 
 func notifyTelegramBot(user models.User, sub models.Subscription, plan models.Plan) {

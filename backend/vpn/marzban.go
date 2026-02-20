@@ -26,7 +26,7 @@ func NewMarzbanClient(baseURL, username, password string) *MarzbanClient {
 		Username: username,
 		Password: password,
 		Client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
