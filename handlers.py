@@ -14,15 +14,38 @@ async def process_buy_menu(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     
     text = (
-        "Choose the VPN Protocol:\n\n"
-        "🌍 <b>V2Ray:</b> Best for web browsing, Instagram, Telegram, etc.\n"
-        "⚡️ <b>Anti-Sanction & Low Ping (WG):</b> Best for gaming and stable low ping."
+        "🌟 <b>Select Your Premium VPN Protocol:</b>\n\n"
+        "🌐 <b>V2Ray (Shadowsocks/Vmess/Vless/Trojan)</b>\n"
+        "╰ <i>Perfect for:</i> Instagram, Telegram, YouTube, and general web browsing.\n"
+        "╰ <i>Features:</i> High speed, bypasses strict firewalls.\n\n"
+        "⚡️ <b>Anti-Sanction & Low Ping</b>\n"
+        "╰ <i>Perfect for:</i> Competitive Gaming (Call of Duty, PUBG, Valorant) and Trading.\n"
+        "╰ <i>Features:</i> Ultra-low latency, rock-solid stability."
     ) if lang == "en" else (
-        "پروتکل VPN را انتخاب کنید:\n\n"
-        "🌍 <b>V2Ray:</b> مناسب برای وب‌گردی، اینستاگرام، تلگرام و...\n"
-        "⚡️ <b>ضد تحریم و کاهش پینگ (WG):</b> مناسب برای گیمینگ و پینگ پایین."
+        "🌟 <b>پروتکل پرمیوم خود را انتخاب کنید:</b>\n\n"
+        "🌐 <b>V2Ray (Shadowsocks/Vmess/Vless/Trojan)</b>\n"
+        "╰ <i>مناسب برای:</i> اینستاگرام، تلگرام، یوتوب و وب‌گردی روزمره.\n"
+        "╰ <i>ویژگی‌ها:</i> سرعت بالا، عبور از فیلترینگ شدید.\n\n"
+        "⚡️ <b>ضد تحریم و کاهش پینگ</b>\n"
+        "╰ <i>مناسب برای:</i> گیمینگ حرفه‌ای (کالاف دیوتی، پابجی) و ترید.\n"
+        "╰ <i>ویژگی‌ها:</i> پینگ فوق‌العاده پایین، پایداری بالا و بدون قطعی."
     )
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=get_protocol_menu(lang))
+    
+    from aiogram.types import FSInputFile
+    photo = FSInputFile("assets/vpn_protocols.png")
+    
+    # We must delete the old text message and send a new photo message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+        
+    await callback.message.answer_photo(
+        photo=photo,
+        caption=text,
+        parse_mode="HTML",
+        reply_markup=get_protocol_menu(lang)
+    )
 
 @router.callback_query(F.data.startswith("select_proto_"))
 async def process_protocol_selection(callback: CallbackQuery):
