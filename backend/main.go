@@ -21,6 +21,7 @@ func init() {
 
 	database.Connect()
 	database.Migrate()
+	database.SeedServers()
 }
 
 func main() {

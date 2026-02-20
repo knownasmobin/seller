@@ -95,9 +95,17 @@ func provisionVPNForOrder(order *models.Order) {
 	configLink := ""
 	uuidStr := ""
 
+	var creds map[string]string
+	if err := json.Unmarshal([]byte(server.Credentials), &creds); err != nil {
+		log.Println("Invalid server credentials JSON for server:", server.ID)
+		return
+	}
+
 	if plan.ServerType == "v2ray" {
-		// Attempt Marzban provision
-		client := vpn.NewMarzbanClient(server.APIUrl, "admin", "admin") // In production fetch from Server Credentials
+		marzbanUser := creds["username"]
+		marzbanPass := creds["password"]
+
+		client := vpn.NewMarzbanClient(server.APIUrl, marzbanUser, marzbanPass)
 
 		username := fmt.Sprintf("user_%d_%d", user.TelegramID, order.ID)
 		expireTime := time.Now().AddDate(0, 0, plan.DurationDays).Unix()
@@ -110,7 +118,9 @@ func provisionVPNForOrder(order *models.Order) {
 			log.Println("Marzban User Create Error:", err)
 		}
 	} else if plan.ServerType == "wireguard" {
-		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], "apikey") // Production from DB
+		apiKey := creds["apiKey"]
+
+		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], apiKey)
 		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 		if peerConf, err := client.CreatePeer(username); err == nil {
 			configLink = "WireGuard Config Data Created" // Or upload to file and serve

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -16,6 +14,11 @@ services:
       - DB_PATH=/app/data/sellbot.db
       - OXAPAY_MERCHANT_KEY=${OXAPAY_MERCHANT_KEY}
       - BOT_TOKEN=${BOT_TOKEN}
+      - MARZBAN_URL=${MARZBAN_URL}
+      - MARZBAN_USERNAME=${MARZBAN_USERNAME}
+      - MARZBAN_PASSWORD=${MARZBAN_PASSWORD}
+      - WGPORTAL_URL=${WGPORTAL_URL}
+      - WGPORTAL_API_KEY=${WGPORTAL_API_KEY}
 
   bot:
     build:
@@ -31,6 +34,6 @@ services:
       - ADMIN_CARD_NUMBER=${ADMIN_CARD_NUMBER}
       # Point to the backend service container instead of localhost
       - API_BASE_URL=http://backend:3000/api/v1
-    
+
 volumes:
   backend_data:
