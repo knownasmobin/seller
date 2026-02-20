@@ -244,8 +244,7 @@ async def process_get_v2ray_configs(callback: CallbackQuery):
                     
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data=f"get_v2ray_link_{sub_id}")],
-                [InlineKeyboardButton(text="🔙 My Configs" if lang == "en" else "🔙 سرویس‌های من", callback_data="my_configs")]
+                [InlineKeyboardButton(text="🔙 Back to My Configs" if lang == "en" else "🔙 بازگشت به سرویس‌های من", callback_data="my_configs")]
             ])
             await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
