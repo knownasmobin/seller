@@ -31,15 +31,18 @@ async def get_or_create_user(telegram_id: int, language: str):
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     user_lang = message.from_user.language_code or "en"
-    # Fallback to fa or en
-    lang = "fa" if "fa" in user_lang else "en"
+    # Use Telegram locale only as initial default for new users
+    initial_lang = "fa" if "fa" in user_lang else "en"
     
-    # Sync with backend
-    user_data = await get_or_create_user(message.from_user.id, lang)
+    # Sync with backend - returns saved language for existing users
+    user_data = await get_or_create_user(message.from_user.id, initial_lang)
     
     if not user_data:
         await message.answer("⚠️ Failed to connect to our servers right now. Please try again later.")
         return
+
+    # Use the language from DB (respects user's choice)
+    lang = user_data.get("language", initial_lang)
 
     welcome_text = (
         "👋 Welcome to our VPN Store!\n\n"

@@ -23,6 +23,7 @@ func SetupRoutes(router fiber.Router) {
 	users := router.Group("/users")
 	users.Post("/", controllers.GetOrCreateUser)
 	users.Patch("/:telegram_id/balance", controllers.UpdateUserBalance)
+	users.Patch("/:telegram_id/language", controllers.UpdateUserLanguage)
 
 	// Plan Routes
 	plans := router.Group("/plans")

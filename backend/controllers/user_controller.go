@@ -73,3 +73,37 @@ func UpdateUserBalance(c *fiber.Ctx) error {
 
 	return c.JSON(user)
 }
+
+// UpdateUserLanguageRequest represents the body of the UpdateUserLanguage API
+type UpdateUserLanguageRequest struct {
+	Language string `json:"language"`
+}
+
+// UpdateUserLanguage updates the language preference for a user
+// @Summary Update user language
+// @Description Updates the language preference for a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param telegram_id path int64 true "Telegram User ID"
+// @Param request body UpdateUserLanguageRequest true "Language"
+// @Success 200 {object} models.User
+// @Router /users/{telegram_id}/language [patch]
+func UpdateUserLanguage(c *fiber.Ctx) error {
+	telegramID := c.Params("telegram_id")
+
+	var req UpdateUserLanguageRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	var user models.User
+	if err := database.DB.Where("telegram_id = ?", telegramID).First(&user).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	user.Language = req.Language
+	database.DB.Save(&user)
+
+	return c.JSON(user)
+}

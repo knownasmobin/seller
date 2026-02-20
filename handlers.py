@@ -3,24 +3,23 @@ from aiogram.types import CallbackQuery
 from keyboards import get_protocol_menu
 import httpx
 import os
+from utils import get_user_lang
 
 router = Router()
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:3000/api/v1")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 
 @router.callback_query(F.data == "buy_menu")
 async def process_buy_menu(callback: CallbackQuery):
-    # Depending on language (we can fetch it from DB or cache, simplified here)
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
     
     text = "Choose the VPN Protocol:" if lang == "en" else "پروتکل VPN را انتخاب کنید:"
     await callback.message.edit_text(text, reply_markup=get_protocol_menu(lang))
 
 @router.callback_query(F.data.startswith("select_proto_"))
 async def process_protocol_selection(callback: CallbackQuery):
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
     proto = callback.data.split("_")[-1]
 
-    # Fetch plans from backend
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/plans?type={proto}")
@@ -39,23 +38,22 @@ async def process_protocol_selection(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("select_plan_"))
 async def process_plan_selection(callback: CallbackQuery):
     plan_id = callback.data.split("_")[-1]
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
     
-    # Normally we ask for Payment Method here: Crypto OR Card
     text = "You selected a plan. How would you like to pay?" if lang == "en" else "شما یک پلن انتخاب کردید. نحوه پرداخت را مشخص کنید:"
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Card to Card", callback_data=f"pay_card_{plan_id}")],
-        [InlineKeyboardButton(text="🪙 Crypto (USDT)", callback_data=f"pay_crypto_{plan_id}")],
-        [InlineKeyboardButton(text="🔙 Back", callback_data="buy_menu")]
+        [InlineKeyboardButton(text="💳 Card to Card" if lang == "en" else "💳 کارت به کارت", callback_data=f"pay_card_{plan_id}")],
+        [InlineKeyboardButton(text="🪙 Crypto (USDT)" if lang == "en" else "🪙 کریپتو (USDT)", callback_data=f"pay_crypto_{plan_id}")],
+        [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="buy_menu")]
     ])
     
     await callback.message.edit_text(text, reply_markup=markup)
 
 @router.callback_query(F.data == "profile")
 async def process_profile(callback: CallbackQuery):
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
     
     async with httpx.AsyncClient() as client:
         try:
@@ -64,9 +62,7 @@ async def process_profile(callback: CallbackQuery):
                 "language": lang
             })
             user_data = resp.json()
-            balance = user_data.get("Balance", 0.0)
-            
-            from keyboards import get_main_menu
+            balance = user_data.get("balance", 0.0)
             
             text = (
                 f"👤 **Your Profile**\n\n"
@@ -88,7 +84,7 @@ async def process_profile(callback: CallbackQuery):
 
 @router.callback_query(F.data == "my_configs")
 async def process_my_configs(callback: CallbackQuery):
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
     
     async with httpx.AsyncClient() as client:
         try:
@@ -106,9 +102,9 @@ async def process_my_configs(callback: CallbackQuery):
             
             text = "🔑 **Your Configs:**\n\n" if lang == "en" else "🔑 **سرویس‌های شما:**\n\n"
             for sub in subs:
-                status = sub.get("Status", "unknown")
-                expiry = sub.get("ExpiryDate", "")[:10]
-                link = sub.get("ConfigLink", "Processing...")
+                status = sub.get("status", "unknown")
+                expiry = sub.get("expiry_date", "")[:10]
+                link = sub.get("config_link", "Processing...")
                 
                 if lang == "en":
                     text += f"🔹 **Status:** {status}\n📅 **Expires:** {expiry}\n🔗 `{link}`\n\n"
@@ -125,7 +121,7 @@ async def process_my_configs(callback: CallbackQuery):
 
 @router.callback_query(F.data == "main_menu")
 async def process_main_menu_back(callback: CallbackQuery):
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
     
     welcome_text = (
         "👋 Welcome back to the Main Menu!\n\n"
@@ -155,11 +151,10 @@ async def process_change_lang(callback: CallbackQuery):
 async def process_set_lang(callback: CallbackQuery):
     lang = callback.data.split("_")[-1]  # "en" or "fa"
     
-    # Update language in backend
+    # Update language in backend using the dedicated update endpoint
     async with httpx.AsyncClient() as client:
         try:
-            await client.post(f"{API_BASE_URL}/users/", json={
-                "telegram_id": callback.from_user.id,
+            await client.patch(f"{API_BASE_URL}/users/{callback.from_user.id}/language", json={
                 "language": lang
             })
         except Exception:
@@ -181,4 +176,3 @@ async def process_set_lang(callback: CallbackQuery):
         "لطفا یک گزینه را انتخاب کنید:"
     )
     await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
-

@@ -4,9 +4,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import httpx
 import os
+import logging
+from utils import get_user_lang
 
 router = Router()
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:3000/api/v1")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 ADMIN_CARD_NUMBER = os.getenv("ADMIN_CARD_NUMBER", "1234-5678-9012-3456")
 
 class PaymentState(StatesGroup):
@@ -15,7 +17,7 @@ class PaymentState(StatesGroup):
 @router.callback_query(F.data.startswith("pay_card_"))
 async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     plan_id = callback.data.split("_")[-1]
-    lang = "fa" if "fa" in (callback.fromuser.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
 
     # Save plan ID in context
     await state.update_data(plan_id=plan_id)
@@ -39,7 +41,7 @@ ADMIN_ID = os.getenv("ADMIN_ID", "123456789")  # Ideally set this in .env
 async def process_screenshot(message: Message, state: FSMContext, bot):
     data = await state.get_data()
     plan_id = data.get("plan_id")
-    lang = "fa" if "fa" in (message.from_user.language_code or "") else "en"
+    lang = await get_user_lang(message.from_user.id)
 
     file_id = message.photo[-1].file_id
 
@@ -98,7 +100,7 @@ async def process_reject_order(callback: CallbackQuery, bot):
 @router.callback_query(F.data.startswith("pay_crypto_"))
 async def process_crypto_payment(callback: CallbackQuery):
     plan_id = callback.data.split("_")[-1]
-    lang = "fa" if "fa" in (callback.from_user.language_code or "") else "en"
+    lang = await get_user_lang(callback.from_user.id)
 
     # In a real app, we would make a POST to our Go backend to create the Order and get the Oxapay Link
     # Since we didn't expose an Oxapay specific endpoint in Go yet, we will mock the URL generation here
