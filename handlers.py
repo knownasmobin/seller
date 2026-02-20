@@ -101,7 +101,7 @@ async def process_my_configs(callback: CallbackQuery):
                 await callback.message.edit_text(text, reply_markup=markup)
                 return
             
-            text = "🔑 *Your Configs:*\n\n" if lang == "en" else "🔑 *سرویس‌های شما:*\n\n"
+            text = "🔑 <b>Your Configs:</b>\n\n" if lang == "en" else "🔑 <b>سرویس‌های شما:</b>\n\n"
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             buttons = []
             
@@ -113,23 +113,21 @@ async def process_my_configs(callback: CallbackQuery):
                 is_wg = link and (link.startswith("#") or "[Interface]" in link)
                 
                 if is_wg:
-                    link_text = "👇 Tap 'Get Config' below to select location & download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
+                    link_text = "👇 Tap 'Get Config' below to select location &amp; download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
                     buttons.append([InlineKeyboardButton(text=f"🌍 Download Config #{index}", callback_data=f"get_wg_{sub_id}")])
                 elif link:
-                    # Escape Markdown special characters in the link
-                    safe_link = link.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("]", "\\]").replace("`", "\\`")
-                    link_text = f"`{safe_link}`"
+                    link_text = f"<code>{link}</code>"
                 else:
                     link_text = "Processing..."
 
                 if lang == "en":
-                    text += f"🔹 *Config {index}* ({status})\n📅 *Expires:* {expiry}\n🔗 {link_text}\n\n"
+                    text += f"🔹 <b>Config {index}</b> ({status})\n📅 <b>Expires:</b> {expiry}\n🔗 {link_text}\n\n"
                 else:
-                    text += f"🔹 *سرویس {index}* ({status})\n📅 *انقضا:* {expiry}\n🔗 {link_text}\n\n"
+                    text += f"🔹 <b>سرویس {index}</b> ({status})\n📅 <b>انقضا:</b> {expiry}\n🔗 {link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
-            await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=markup)
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             logging.error(f"[MyConfigs] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Backend error.", show_alert=True)

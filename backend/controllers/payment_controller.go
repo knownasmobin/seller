@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -182,7 +183,12 @@ func provisionVPNForOrder(order *models.Order) {
 
 		subLink, err := client.CreateUser(username, plan.DataLimitGB, expireTime)
 		if err == nil {
-			configLink = fmt.Sprintf("%s%s", server.APIUrl, subLink) // rough URL formatting
+			// Marzban may return a full URL or a relative path like /sub/username/
+			if strings.HasPrefix(subLink, "http") {
+				configLink = subLink
+			} else {
+				configLink = fmt.Sprintf("%s%s", strings.TrimRight(server.APIUrl, "/"), subLink)
+			}
 		} else {
 			log.Printf("[ERROR][Provision][Marzban] User Create Failed. URL: %s, User: %s, Err: %v\n", server.APIUrl, username, err)
 		}
