@@ -187,7 +187,14 @@ async def process_crypto_payment(callback: CallbackQuery):
         "🔗 در حال ایجاد لینک پرداخت کریپتو..."
     )
     
-    msg = await callback.message.edit_text(text)
+    if getattr(callback.message, "photo", None):
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        msg = await callback.message.answer(text)
+    else:
+        msg = await callback.message.edit_text(text)
     
     async with httpx.AsyncClient() as client:
         try:

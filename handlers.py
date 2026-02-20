@@ -55,6 +55,7 @@ async def process_protocol_selection(callback: CallbackQuery):
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/plans?type={proto}")
+            logging.info(f"Plans API response for {proto}: {resp.status_code} {resp.text}")
             plans = resp.json()
             if not plans:
                 msg = "No plans available for this protocol right now." if lang == "en" else "در حال حاضر پلنی برای این پروتکل موجود نیست."
@@ -65,6 +66,7 @@ async def process_protocol_selection(callback: CallbackQuery):
             text = f"Select a {proto} plan:" if lang == "en" else f"یک پلن {proto} انتخاب کنید:"
             await callback.message.edit_text(text, reply_markup=get_plans_menu(plans, lang))
         except Exception as e:
+            logging.exception(f"Error in process_protocol_selection:")
             await callback.answer("Backend error.", show_alert=True)
 
 @router.callback_query(F.data.startswith("select_plan_"))
@@ -339,7 +341,16 @@ async def process_main_menu_back(callback: CallbackQuery):
     from keyboards import get_main_menu
     admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
     is_admin = str(callback.from_user.id) in admin_ids
-    await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
+    
+    markup = get_main_menu(lang, is_admin=is_admin)
+    if getattr(callback.message, "photo", None):
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(welcome_text, reply_markup=markup)
+    else:
+        await callback.message.edit_text(welcome_text, reply_markup=markup)
 
 @router.callback_query(F.data == "change_lang")
 async def process_change_lang(callback: CallbackQuery):
