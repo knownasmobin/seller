@@ -61,6 +61,7 @@ type Subscription struct {
 	ID         uint           `gorm:"primaryKey" json:"ID"`
 	UserID     uint           `json:"user_id"`
 	PlanID     uint           `json:"plan_id"`
+	Plan       Plan           `gorm:"foreignKey:PlanID" json:"plan"`
 	ServerID   uint           `json:"server_id"`
 	ConfigLink string         `gorm:"type:text" json:"config_link"`
 	UUID       string         `gorm:"size:100;uniqueIndex" json:"uuid"`

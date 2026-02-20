@@ -13,8 +13,16 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 async def process_buy_menu(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     
-    text = "Choose the VPN Protocol:" if lang == "en" else "پروتکل VPN را انتخاب کنید:"
-    await callback.message.edit_text(text, reply_markup=get_protocol_menu(lang))
+    text = (
+        "Choose the VPN Protocol:\n\n"
+        "🌍 <b>V2Ray:</b> Best for web browsing, Instagram, Telegram, etc.\n"
+        "⚡️ <b>Anti-Sanction & Low Ping (WG):</b> Best for gaming and stable low ping."
+    ) if lang == "en" else (
+        "پروتکل VPN را انتخاب کنید:\n\n"
+        "🌍 <b>V2Ray:</b> مناسب برای وب‌گردی، اینستاگرام، تلگرام و...\n"
+        "⚡️ <b>ضد تحریم و کاهش پینگ (WG):</b> مناسب برای گیمینگ و پینگ پایین."
+    )
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=get_protocol_menu(lang))
 
 @router.callback_query(F.data.startswith("select_proto_"))
 async def process_protocol_selection(callback: CallbackQuery):
@@ -129,10 +137,27 @@ async def process_my_configs(callback: CallbackQuery):
                 else:
                     link_text = "Processing..."
 
-                if lang == "en":
-                    text += f"🔹 <b>Config {index}</b> ({status})\n📅 <b>Expires:</b> {expiry}\nℹ️ {link_text}\n\n"
+                plan = sub.get("plan", {})
+                duration = plan.get("duration_days", "")
+                data_limit = plan.get("data_limit_gb", "")
+                proto_name = plan.get("server_type", "Unknown")
+                
+                if proto_name.lower() == "wireguard":
+                    proto_display = "Low Ping (WG)" if lang == "en" else "کاهش پینگ (WG)"
+                elif proto_name.lower() == "v2ray":
+                    proto_display = "V2Ray"
                 else:
-                    text += f"🔹 <b>سرویس {index}</b> ({status})\n📅 <b>انقضا:</b> {expiry}\nℹ️ {link_text}\n\n"
+                    proto_display = proto_name.capitalize()
+                
+                if duration and data_limit:
+                    idx_name = f"{proto_display} - {duration} Days - {data_limit}GB" if lang == "en" else f"{proto_display} - {duration} روز - {data_limit} گیگ"
+                else:
+                    idx_name = f"Config {index}" if lang == "en" else f"سرویس {index}"
+
+                if lang == "en":
+                    text += f"🔹 <b>{idx_name}</b> ({status})\n📅 <b>Expires:</b> {expiry}\nℹ️ {link_text}\n\n"
+                else:
+                    text += f"🔹 <b>{idx_name}</b> ({status})\n📅 <b>انقضا:</b> {expiry}\nℹ️ {link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)

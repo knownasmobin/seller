@@ -26,7 +26,7 @@ func GetUserSubscriptions(c *fiber.Ctx) error {
 	}
 
 	var subscriptions []models.Subscription
-	database.DB.Where("user_id = ?", user.ID).Order("start_date desc").Find(&subscriptions)
+	database.DB.Preload("Plan").Where("user_id = ?", user.ID).Order("start_date desc").Find(&subscriptions)
 
 	// ...
 
