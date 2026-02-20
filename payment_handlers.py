@@ -93,13 +93,28 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
             
             # Send screenshot to Admin group for approval using order_id and file_id
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            
+            # Fetch plan details to show admins what the user is buying
+            plan_name = f"Plan ID {plan_id}"
+            try:
+                resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
+                if resp.status_code == 200:
+                    plan_data = resp.json()
+                    name = plan_data.get("name", "")
+                    proto = plan_data.get("protocol", "")
+                    dur = plan_data.get("duration", 0)
+                    limit = plan_data.get("data_limit", 0)
+                    plan_name = f"{name} ({proto}) - {dur} Days, {limit}GB"
+            except Exception as e:
+                logging.error(f"Failed to fetch plan details for order {order_id}: {e}")
+
             admin_markup = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(text="✅ Approve", callback_data=f"approve_order_{order_id}"),
                     InlineKeyboardButton(text="❌ Reject", callback_data=f"reject_order_{order_id}")
                 ]
             ])
-            admin_text = f"💳 **New Card Payment**\n\n**Order ID:** {order_id}\n**User ID:** {message.from_user.id}\n**Plan ID:** {plan_id}"
+            admin_text = f"💳 **New Card Payment**\n\n**Order ID:** {order_id}\n**User ID:** {message.from_user.id}\n**Plan:** {plan_name}"
             
             for admin_id in ADMIN_IDS:
                 try:

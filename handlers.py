@@ -507,10 +507,30 @@ async def process_support_message(message: Message, state: FSMContext, bot):
         await state.clear()
         return
 
+    # Fetch user's active subscriptions to include in the ticket
+    active_plans_text = "<i>No active subscriptions found.</i>"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/users/{message.from_user.id}/subscriptions")
+            if resp.status_code == 200:
+                subs = resp.json()
+                active_subs = [s for s in subs if s.get("status") == "active"]
+                if active_subs:
+                    plan_details = []
+                    for idx, sub in enumerate(active_subs, 1):
+                        plan_name = sub.get("plan", {}).get("name", "Unknown Plan")
+                        proto = sub.get("plan", {}).get("protocol", "N/A")
+                        plan_details.append(f"  └ {idx}. <b>{plan_name}</b> ({proto})")
+                    active_plans_text = "\n".join(plan_details)
+        except Exception as e:
+            logging.error(f"Error fetching subs for support ticket: {e}")
+            active_plans_text = "<i>Error retrieving subscriptions.</i>"
+
     admin_text = (
         f"📩 <b>New Support Ticket</b>\n"
         f"👤 <b>User ID:</b> <code>{message.from_user.id}</code>\n"
         f"🗣 <b>Username:</b> @{message.from_user.username or 'No Username'}\n\n"
+        f"📦 <b>Active Plans:</b>\n{active_plans_text}\n\n"
         f"<b>Message:</b>\n{user_msg}\n\n"
         f"<i>Reply directly to this user's message using the bot to answer them.</i>"
     )
