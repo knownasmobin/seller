@@ -182,7 +182,7 @@ func provisionVPNForOrder(order *models.Order) {
 
 		subLink, err := client.CreateUser(username, plan.DataLimitGB, expireTime)
 		if err == nil {
-			configLink = fmt.Sprintf("%s%s", server.APIUrl[:len(server.APIUrl)-4], subLink) // rough URL formatting
+			configLink = fmt.Sprintf("%s%s", server.APIUrl, subLink) // rough URL formatting
 		} else {
 			log.Printf("[ERROR][Provision][Marzban] User Create Failed. URL: %s, User: %s, Err: %v\n", server.APIUrl, username, err)
 		}
@@ -190,7 +190,7 @@ func provisionVPNForOrder(order *models.Order) {
 		wgUser := creds["username"]
 		wgPass := creds["password"]
 
-		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], wgUser, wgPass)
+		client := vpn.NewWgPortalClient(server.APIUrl, wgUser, wgPass)
 		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 		uuidStr = username
 		if peerConf, err := client.CreatePeer(username); err == nil {
