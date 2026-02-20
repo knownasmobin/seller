@@ -146,14 +146,14 @@ async def process_custom_name_prompt(callback: CallbackQuery, state: FSMContext)
     await state.update_data(plan_id=plan_id)
     
     text = (
-        "✏️ **Enter your preferred config name:**\n\n"
-        "⚠️ *Rules:*\n"
+        "✏️ <b>Enter your preferred config name:</b>\n\n"
+        "⚠️ <i>Rules:</i>\n"
         "- Between 3 and 32 characters\n"
         "- Only lowercase letters (a-z), numbers (0-9), and underscores (_)\n"
         "- NO spaces or special symbols."
     ) if lang == "en" else (
-        "✏️ **نام دلخواه کانفیگ خود را وارد کنید:**\n\n"
-        "⚠️ *قوانین:*\n"
+        "✏️ <b>نام دلخواه کانفیگ خود را وارد کنید:</b>\n\n"
+        "⚠️ <i>قوانین:</i>\n"
         "- بین ۳ تا ۳۲ کاراکتر\n"
         "- فقط حروف کوچک انگلیسی (a-z)، اعداد (0-9) و خط تیره پایین (_)\n"
         "- بدون فاصله یا علائم نگارشی."
@@ -164,7 +164,7 @@ async def process_custom_name_prompt(callback: CallbackQuery, state: FSMContext)
         [InlineKeyboardButton(text="🔙 Skip" if lang == "en" else "🔙 رد شدن", callback_data=f"skip_cname_{plan_id}")]
     ])
     
-    await callback.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
 
 import re
 
@@ -185,13 +185,13 @@ async def process_custom_name_input(message: Message, state: FSMContext):
     # Validate against Marzban rules
     if not re.match(r"^[a-z0-9_]{3,32}$", config_name):
         error_msg = (
-            "❌ **Invalid Name!**\n\n"
+            "❌ <b>Invalid Name!</b>\n\n"
             "Please ensure it is 3-32 characters long, and contains only a-z, 0-9, or underscores (_)."
         ) if lang == "en" else (
-            "❌ **نام نامعتبر!**\n\n"
+            "❌ <b>نام نامعتبر!</b>\n\n"
             "لطفاً مطمئن شوید طول نام ۳ تا ۳۲ کاراکتر است و فقط شامل حروف انگلیسی، اعداد یا (_) می‌باشد."
         )
-        await message.answer(error_msg, parse_mode="Markdown")
+        await message.answer(error_msg, parse_mode="HTML")
         return
         
     await state.update_data(config_name=config_name)
