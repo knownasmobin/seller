@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"time"
@@ -194,22 +193,7 @@ func provisionVPNForOrder(order *models.Order) {
 		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], wgUser, wgPass)
 		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 		if peerConf, err := client.CreatePeer(username); err == nil {
-			// Look up the selected endpoint
-			endpointAddr := ""
-			if order.EndpointID > 0 {
-				var ep models.Endpoint
-				if err := database.DB.First(&ep, order.EndpointID).Error; err == nil {
-					endpointAddr = ep.Address
-				}
-			}
-
-			// Transform the raw wgportal config into clean user-facing format
-			botName := os.Getenv("BOT_NAME")
-			if botName == "" {
-				botName = "ghostwire t.me/theghostwirebot"
-			}
-			wireSockApps := os.Getenv("WIRESOCK_ALLOWED_APPS")
-			configLink = vpn.TransformWGConfig(peerConf, botName, endpointAddr, wireSockApps)
+			configLink = peerConf
 			uuidStr = username
 			log.Println("Created WG Peer:", username)
 		} else {
@@ -247,7 +231,7 @@ func notifyTelegramBot(user models.User, sub models.Subscription, plan models.Pl
 
 	if plan.ServerType == "wireguard" {
 		// Send the config as a .conf document file
-		sendWGConfigFile(botToken, user, sub)
+		sendWGReadyMessage(botToken, user, sub)
 	} else {
 		// V2Ray: send subscription URL as text
 		sendV2RayLink(botToken, user, sub)
@@ -283,42 +267,31 @@ func sendV2RayLink(botToken string, user models.User, sub models.Subscription) {
 	http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 }
 
-func sendWGConfigFile(botToken string, user models.User, sub models.Subscription) {
-	// Use Telegram's sendDocument with multipart form data
-	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", botToken)
-
-	var caption string
+func sendWGReadyMessage(botToken string, user models.User, sub models.Subscription) {
+	var text string
 	if user.Language == "fa" {
-		caption = "✅ کانفیگ WireGuard شما آماده است!\n"
+		text = "✅ **سرویس WireGuard شما آماده است!**\n\n"
+		text += "برای دریافت کانفیگ خود، لطفاً به بخش **🔑 سرویس‌های من (My Configs)** بروید و لوکیشن سرور را انتخاب کنید.\n"
 		if sub.ExpiryDate.Year() > 2000 {
-			caption += fmt.Sprintf("📅 انقضا: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+			text += fmt.Sprintf("📅 انقضا: %s\n", sub.ExpiryDate.Format("2006-01-02"))
 		}
-		caption += "\nاین فایل را در اپلیکیشن WireGuard ایمپورت کنید."
 	} else {
-		caption = "✅ Your WireGuard Config is Ready!\n"
+		text = "✅ **Your WireGuard Config is Ready!**\n\n"
+		text += "To get your config file, please go to **🔑 My Configs**, select your active plan, and choose a server location.\n"
 		if sub.ExpiryDate.Year() > 2000 {
-			caption += fmt.Sprintf("📅 Expires: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+			text += fmt.Sprintf("📅 Expires: %s\n", sub.ExpiryDate.Format("2006-01-02"))
 		}
-		caption += "\nImport this file into your WireGuard app."
 	}
 
-	// Build multipart form
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	writer.WriteField("chat_id", fmt.Sprintf("%d", user.TelegramID))
-	writer.WriteField("caption", caption)
-
-	// Create the .conf file part
-	filename := fmt.Sprintf("wg_%s.conf", sub.UUID)
-	part, err := writer.CreateFormFile("document", filename)
-	if err != nil {
-		log.Println("Failed to create form file for WG config:", err)
-		return
+	payload := map[string]interface{}{
+		"chat_id":    user.TelegramID,
+		"text":       text,
+		"parse_mode": "Markdown",
 	}
-	part.Write([]byte(sub.ConfigLink))
-	writer.Close()
 
-	http.Post(apiURL, writer.FormDataContentType(), &body)
+	jsonData, _ := json.Marshal(payload)
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+	http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 }
 
 func sendRejectionNotification(user models.User) {

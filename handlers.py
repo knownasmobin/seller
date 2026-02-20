@@ -40,66 +40,16 @@ async def process_plan_selection(callback: CallbackQuery):
     plan_id = callback.data.split("_")[-1]
     lang = await get_user_lang(callback.from_user.id)
     
-    # Fetch the plan to know its type
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
-            if resp.status_code != 200:
-                await callback.answer("Plan not found.", show_alert=True)
-                return
-            plan = resp.json()
-        except Exception:
-            await callback.answer("Backend error.", show_alert=True)
-            return
+    text = "You selected a plan. How would you like to pay?" if lang == "en" else "شما یک پلن انتخاب کردید. نحوه پرداخت را مشخص کنید:"
     
-    server_type = plan.get("server_type", "v2ray")
-    
-    if server_type == "wireguard":
-        # WireGuard: show endpoint selection first
-        async with httpx.AsyncClient() as client:
-            try:
-                ep_resp = await client.get(f"{API_BASE_URL}/endpoints")
-                endpoints = ep_resp.json()
-                
-                if not endpoints:
-                    await callback.answer("No endpoints available." if lang == "en" else "هیچ اندپوینتی موجود نیست.", show_alert=True)
-                    return
-                
-                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-                buttons = []
-                for ep in endpoints:
-                    btn_text = ep.get("name", ep.get("address"))
-                    buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"select_ep_{ep.get('ID')}_{plan_id}")])
-                buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="buy_menu")])
-                
-                text = "🌍 Select a server location:" if lang == "en" else "🌍 لوکیشن سرور را انتخاب کنید:"
-                await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
-            except Exception:
-                await callback.answer("Backend error.", show_alert=True)
-    else:
-        # V2Ray: go straight to payment
-        await _show_payment_options(callback, plan_id, lang, endpoint_id=0)
-
-async def _show_payment_options(callback, plan_id, lang, endpoint_id=0):
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    text = "How would you like to pay?" if lang == "en" else "نحوه پرداخت را مشخص کنید:"
-    
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Card to Card" if lang == "en" else "💳 کارت به کارت", callback_data=f"pay_card_{plan_id}_{endpoint_id}")],
-        [InlineKeyboardButton(text="🪙 Crypto (USDT)" if lang == "en" else "🪙 کریپتو (USDT)", callback_data=f"pay_crypto_{plan_id}_{endpoint_id}")],
+        [InlineKeyboardButton(text="💳 Card to Card" if lang == "en" else "💳 کارت به کارت", callback_data=f"pay_card_{plan_id}")],
+        [InlineKeyboardButton(text="🪙 Crypto (USDT)" if lang == "en" else "🪙 کریپتو (USDT)", callback_data=f"pay_crypto_{plan_id}")],
         [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="buy_menu")]
     ])
     
     await callback.message.edit_text(text, reply_markup=markup)
-
-@router.callback_query(F.data.startswith("select_ep_"))
-async def process_endpoint_selection(callback: CallbackQuery):
-    parts = callback.data.split("_")
-    endpoint_id = parts[2]
-    plan_id = parts[3]
-    lang = await get_user_lang(callback.from_user.id)
-    
-    await _show_payment_options(callback, plan_id, lang, endpoint_id=endpoint_id)
 
 @router.callback_query(F.data == "profile")
 async def process_profile(callback: CallbackQuery):
@@ -151,20 +101,29 @@ async def process_my_configs(callback: CallbackQuery):
                 return
             
             text = "🔑 **Your Configs:**\n\n" if lang == "en" else "🔑 **سرویس‌های شما:**\n\n"
-            for sub in subs:
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            buttons = []
+            
+            for index, sub in enumerate(subs, 1):
                 status = sub.get("status", "unknown")
                 expiry = sub.get("expiry_date", "")[:10]
                 link = sub.get("config_link", "Processing...")
+                sub_id = sub.get("ID")
+                is_wg = link.startswith("#") or "[Interface]" in link
                 
-                if lang == "en":
-                    text += f"🔹 **Status:** {status}\n📅 **Expires:** {expiry}\n🔗 `{link}`\n\n"
+                if is_wg:
+                    link_text = "👇 Tap 'Get Config' below to select location & download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
+                    buttons.append([InlineKeyboardButton(text=f"🌍 Download Config #{index}", callback_data=f"get_wg_{sub_id}")])
                 else:
-                    text += f"🔹 **وضعیت:** {status}\n📅 **انقضا:** {expiry}\n🔗 `{link}`\n\n"
+                    link_text = f"`{link}`"
+
+                if lang == "en":
+                    text += f"🔹 **Config {index}** ({status})\n📅 **Expires:** {expiry}\n🔗 {link_text}\n\n"
+                else:
+                    text += f"🔹 **سرویس {index}** ({status})\n📅 **انقضا:** {expiry}\n🔗 {link_text}\n\n"
             
-            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")]
-            ])
+            buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
+            markup = InlineKeyboardMarkup(inline_keyboard=buttons)
             await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
             await callback.answer("Backend error.", show_alert=True)

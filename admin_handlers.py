@@ -346,7 +346,7 @@ async def admin_add_ep_address(message: types.Message, state: FSMContext):
             })
             if resp.status_code == 201:
                 markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton("🔙 Back to Endpoints", callback_data="admin_endpoints")]
+                    [InlineKeyboardButton(text="🔙 Back to Endpoints", callback_data="admin_endpoints")]
                 ])
                 await message.answer(f"✅ Endpoint added: **{data.get('ep_name')}** — `{message.text.strip()}`", parse_mode="Markdown", reply_markup=markup)
             else:

@@ -39,6 +39,7 @@ func SetupRoutes(router fiber.Router) {
 	orders.Post("/:id/reject", controllers.RejectOrder)
 	users.Get("/:telegram_id/orders", controllers.GetUserOrders) // Note attached to users group
 	users.Get("/:telegram_id/subscriptions", controllers.GetUserSubscriptions)
+	users.Get("/:telegram_id/subscriptions/:sub_id/wg_config", controllers.GetWGConfig)
 
 	// Webhook Routes
 	webhooks := router.Group("/webhooks")
