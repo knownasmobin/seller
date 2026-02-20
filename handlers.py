@@ -185,3 +185,58 @@ async def process_set_lang(callback: CallbackQuery):
         "لطفا یک گزینه را انتخاب کنید:"
     )
     await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
+
+@router.callback_query(F.data.startswith("get_wg_"))
+async def process_get_wg_config(callback: CallbackQuery):
+    sub_id = callback.data.split("_")[2]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            ep_resp = await client.get(f"{API_BASE_URL}/endpoints")
+            endpoints = ep_resp.json()
+            
+            if not endpoints:
+                await callback.answer("No endpoints available." if lang == "en" else "هیچ اندپوینتی موجود نیست.", show_alert=True)
+                return
+            
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            buttons = []
+            for ep in endpoints:
+                btn_text = ep.get("name", ep.get("address"))
+                buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"dl_wg_{sub_id}_{ep.get('ID')}")])
+            buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="my_configs")])
+            
+            text = "🌍 **Select a server location to download your WireGuard config:**" if lang == "en" else "🌍 **برای دریافت کانفیگ WireGuard، لوکیشن سرور را انتخاب کنید:**"
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
+        except Exception:
+            await callback.answer("Backend error.", show_alert=True)
+
+@router.callback_query(F.data.startswith("dl_wg_"))
+async def process_dl_wg_config(callback: CallbackQuery):
+    parts = callback.data.split("_")
+    sub_id = parts[2]
+    ep_id = parts[3]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions/{sub_id}/wg_config?endpoint_id={ep_id}")
+            if resp.status_code == 200:
+                data = resp.json()
+                config_text = data.get("config")
+                uuid_str = data.get("uuid")
+                
+                from aiogram.types import BufferedInputFile
+                import io
+                
+                conf_bytes = config_text.encode('utf-8')
+                file = BufferedInputFile(conf_bytes, filename=f"wg_{uuid_str}.conf")
+                
+                caption = "✅ **Your Config is ready!**\nImport this into your WireGuard app." if lang == "en" else "✅ **کانفیگ شما آماده است!**\nاین فایل را در اپلیکیشن WireGuard ایمپورت کنید."
+                await callback.message.answer_document(document=file, caption=caption, parse_mode="Markdown")
+                await callback.answer()
+            else:
+                await callback.answer("Error getting config.", show_alert=True)
+        except Exception as e:
+            await callback.answer("Backend error.", show_alert=True)
