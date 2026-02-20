@@ -121,7 +121,8 @@ async def process_my_configs(callback: CallbackQuery):
                 
                 if is_wg:
                     link_text = "👇 Tap 'Get Config' below to select location &amp; download." if lang == "en" else "👇 برای انتخاب لوکیشن و دریافت کانفیگ روی 'دریافت کانفیگ' کلیک کنید."
-                    buttons.append([InlineKeyboardButton(text=f"🌍 Download Config #{index}", callback_data=f"get_wg_{sub_id}")])
+                    btn_text = f"🌍 Download Config #{index}" if lang == "en" else f"🌍 دریافت کانفیگ #{index}"
+                    buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"get_wg_{sub_id}")])
                 elif link:
                     link_text = "👇 Tap 'Get Connection Link' below." if lang == "en" else "👇 برای دریافت لینک اتصال روی دکمه زیر کلیک کنید."
                     buttons.append([InlineKeyboardButton(text=f"🔗 Get Connection Link #{index}" if lang == "en" else f"🔗 دریافت لینک اتصال #{index}", callback_data=f"get_v2ray_link_{sub_id}")])
@@ -135,7 +136,15 @@ async def process_my_configs(callback: CallbackQuery):
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
-            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+            
+            if getattr(callback.message, "photo", None):
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
+                await callback.message.answer(text, parse_mode="HTML", reply_markup=markup)
+            else:
+                await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             logging.error(f"[MyConfigs] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Backend error.", show_alert=True)
@@ -182,7 +191,15 @@ async def process_get_v2ray_link(callback: CallbackQuery):
                 [InlineKeyboardButton(text="📥 Get Connections (Individual)" if lang == "en" else "📥 دریافت کانفیگ‌های مجزا", callback_data=f"get_v2ray_configs_{sub_id}")],
                 [InlineKeyboardButton(text="🔙 Back to My Configs" if lang == "en" else "🔙 بازگشت به سرویس‌های من", callback_data="my_configs")]
             ])
-            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+            
+            import urllib.parse
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=400x400&data={urllib.parse.quote(link)}"
+            
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            await callback.message.answer_photo(photo=qr_url, caption=text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             logging.error(f"[GetV2RayLink] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Backend error.", show_alert=True)
@@ -246,7 +263,15 @@ async def process_get_v2ray_configs(callback: CallbackQuery):
             markup = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Back to My Configs" if lang == "en" else "🔙 بازگشت به سرویس‌های من", callback_data="my_configs")]
             ])
-            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+            
+            if getattr(callback.message, "photo", None):
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
+                await callback.message.answer(text, parse_mode="HTML", reply_markup=markup)
+            else:
+                await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             logging.error(f"[GetV2RayConfigs] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Error parsing connections.", show_alert=True)
@@ -356,8 +381,8 @@ async def process_dl_wg_config(callback: CallbackQuery):
                 conf_bytes = config_text.encode('utf-8')
                 file = BufferedInputFile(conf_bytes, filename=f"wg_{uuid_str}.conf")
                 
-                caption = "✅ **Your Config is ready!**\nImport this into your WireGuard app." if lang == "en" else "✅ **کانفیگ شما آماده است!**\nاین فایل را در اپلیکیشن WireGuard ایمپورت کنید."
-                await callback.message.answer_document(document=file, caption=caption, parse_mode="Markdown")
+                caption = "✅ <b>Your Config is ready!</b>\nImport this into your <a href='https://www.wiresock.net/wiresock-secure-connect/download'>Wiresock</a> app." if lang == "en" else "✅ <b>کانفیگ شما آماده است!</b>\nاین فایل را در اپلیکیشن <a href='https://www.wiresock.net/wiresock-secure-connect/download'>Wiresock</a> ایمپورت کنید."
+                await callback.message.answer_document(document=file, caption=caption, parse_mode="HTML")
                 await callback.answer()
             else:
                 await callback.answer("Error getting config.", show_alert=True)
