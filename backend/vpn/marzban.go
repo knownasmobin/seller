@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -31,12 +32,14 @@ func NewMarzbanClient(baseURL, username, password string) *MarzbanClient {
 
 // Login obtains the JWT token
 func (m *MarzbanClient) Login() error {
-	url := fmt.Sprintf("%s/api/admin/token", m.BaseURL)
+	apiURL := fmt.Sprintf("%s/api/admin/token", m.BaseURL)
 
 	// Marzban uses x-www-form-urlencoded for login
-	data := fmt.Sprintf("username=%s&password=%s", m.Username, m.Password)
+	formData := url.Values{}
+	formData.Set("username", m.Username)
+	formData.Set("password", m.Password)
 
-	req, err := http.NewRequest("POST", url, bytes.NewBufferString(data))
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(formData.Encode()))
 	if err != nil {
 		return err
 	}
@@ -72,7 +75,7 @@ func (m *MarzbanClient) CreateUser(username string, dataLimitGB float64, expireU
 		}
 	}
 
-	url := fmt.Sprintf("%s/api/user", m.BaseURL)
+	apiURL := fmt.Sprintf("%s/api/user", m.BaseURL)
 
 	// Convert GB to Bytes
 	var dataLimit int64
@@ -92,7 +95,7 @@ func (m *MarzbanClient) CreateUser(username string, dataLimitGB float64, expireU
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", err
 	}

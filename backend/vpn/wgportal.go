@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -85,7 +86,7 @@ func (w *WgPortalClient) CreatePeer(username string) (string, error) {
 	}
 
 	// 3. Fetch the configuration file for the newly created peer
-	configURL := fmt.Sprintf("%s/api/v1/provisioning/data/peer-config?PeerId=%s", w.BaseURL, peerPubKey)
+	configURL := fmt.Sprintf("%s/api/v1/provisioning/data/peer-config?PeerId=%s", w.BaseURL, url.QueryEscape(peerPubKey))
 	reqConf, _ := http.NewRequest("GET", configURL, nil)
 	reqConf.SetBasicAuth(w.Username, w.Password)
 
