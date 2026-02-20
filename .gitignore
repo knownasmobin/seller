@@ -21,3 +21,5 @@ backend_data/
 # OS generated files
 .DS_Store
 Thumbs.db
+example.conf
+test.conf

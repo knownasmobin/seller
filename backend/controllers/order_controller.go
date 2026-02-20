@@ -14,6 +14,7 @@ import (
 type CreateOrderRequest struct {
 	TelegramID    int64   `json:"telegram_id"`
 	PlanID        uint    `json:"plan_id"`
+	EndpointID    uint    `json:"endpoint_id"` // WireGuard endpoint selection
 	PaymentMethod string  `json:"payment_method"`
 	Amount        float64 `json:"amount"`
 }
@@ -49,6 +50,7 @@ func CreateOrder(c *fiber.Ctx) error {
 	order := models.Order{
 		UserID:        user.ID,
 		PlanID:        plan.ID,
+		EndpointID:    req.EndpointID,
 		Amount:        req.Amount,
 		PaymentMethod: req.PaymentMethod,
 		PaymentStatus: "pending",

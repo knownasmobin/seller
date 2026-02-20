@@ -28,13 +28,17 @@ func GetOrCreateUser(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	result := database.DB.Where(&models.User{TelegramID: req.TelegramID}).FirstOrCreate(&user, models.User{
-		TelegramID: req.TelegramID,
-		Language:   req.Language,
-	})
+	result := database.DB.Where("telegram_id = ?", req.TelegramID).First(&user)
 
 	if result.Error != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		// User doesn't exist, create new
+		user = models.User{
+			TelegramID: req.TelegramID,
+			Language:   req.Language,
+		}
+		if err := database.DB.Create(&user).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to create user"})
+		}
 	}
 
 	return c.JSON(user)

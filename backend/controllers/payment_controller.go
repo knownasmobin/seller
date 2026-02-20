@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"time"
@@ -131,9 +132,7 @@ func RejectOrder(c *fiber.Ctx) error {
 	database.DB.Where("id = ?", order.UserID).First(&user)
 
 	// Notify user about rejection
-	notifyTelegramBot(user, models.Subscription{
-		ConfigLink: "❌ Your payment was rejected.",
-	})
+	sendRejectionNotification(user)
 
 	return c.JSON(fiber.Map{
 		"message":     "Order rejected",
@@ -195,7 +194,22 @@ func provisionVPNForOrder(order *models.Order) {
 		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], wgUser, wgPass)
 		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 		if peerConf, err := client.CreatePeer(username); err == nil {
-			configLink = peerConf // We store the raw multiline .conf here
+			// Look up the selected endpoint
+			endpointAddr := ""
+			if order.EndpointID > 0 {
+				var ep models.Endpoint
+				if err := database.DB.First(&ep, order.EndpointID).Error; err == nil {
+					endpointAddr = ep.Address
+				}
+			}
+
+			// Transform the raw wgportal config into clean user-facing format
+			botName := os.Getenv("BOT_NAME")
+			if botName == "" {
+				botName = "ghostwire t.me/theghostwirebot"
+			}
+			wireSockApps := os.Getenv("WIRESOCK_ALLOWED_APPS")
+			configLink = vpn.TransformWGConfig(peerConf, botName, endpointAddr, wireSockApps)
 			uuidStr = username
 			log.Println("Created WG Peer:", username)
 		} else {
@@ -222,38 +236,40 @@ func provisionVPNForOrder(order *models.Order) {
 	database.DB.Create(&sub)
 
 	// Try notifying Bot to send message back to User
-	notifyTelegramBot(user, sub)
+	notifyTelegramBot(user, sub, plan)
 }
 
-func notifyTelegramBot(user models.User, sub models.Subscription) {
+func notifyTelegramBot(user models.User, sub models.Subscription, plan models.Plan) {
 	botToken := os.Getenv("BOT_TOKEN")
 	if botToken == "" {
 		return
 	}
 
+	if plan.ServerType == "wireguard" {
+		// Send the config as a .conf document file
+		sendWGConfigFile(botToken, user, sub)
+	} else {
+		// V2Ray: send subscription URL as text
+		sendV2RayLink(botToken, user, sub)
+	}
+}
+
+func sendV2RayLink(botToken string, user models.User, sub models.Subscription) {
 	var text string
 	if user.Language == "fa" {
-		text = "✅ **کانفیگ VPN شما آماده است!**\n\n"
-		if len(sub.ConfigLink) > 0 && sub.ConfigLink[0] == '[' { // Looks like Wireguard raw config
-			text += "🔗 فایل/متن کانفیگ (WireGuard):\n"
-			text += fmt.Sprintf("```ini\n%s\n```\n\n", sub.ConfigLink)
-		} else {
-			text += fmt.Sprintf("🔗 لینک کانفیگ: `%s`\n", sub.ConfigLink)
-		}
+		text = "✅ **سرویس V2Ray شما آماده است!**\n\n"
+		text += fmt.Sprintf("🔗 لینک اشتراک: `%s`\n", sub.ConfigLink)
 		if sub.ExpiryDate.Year() > 2000 {
 			text += fmt.Sprintf("📅 انقضا: %s\n", sub.ExpiryDate.Format("2006-01-02"))
 		}
+		text += "\nاین لینک را در اپلیکیشن V2Ray خود (مثل v2rayNG یا Streisand) وارد کنید."
 	} else {
-		text = "✅ **Your VPN Config is Ready!**\n\n"
-		if len(sub.ConfigLink) > 0 && sub.ConfigLink[0] == '[' {
-			text += "🔗 Config Text (WireGuard):\n"
-			text += fmt.Sprintf("```ini\n%s\n```\n\n", sub.ConfigLink)
-		} else {
-			text += fmt.Sprintf("🔗 Link/Config: `%s`\n", sub.ConfigLink)
-		}
+		text = "✅ **Your V2Ray Config is Ready!**\n\n"
+		text += fmt.Sprintf("🔗 Subscription URL: `%s`\n", sub.ConfigLink)
 		if sub.ExpiryDate.Year() > 2000 {
 			text += fmt.Sprintf("📅 Expires: %s\n", sub.ExpiryDate.Format("2006-01-02"))
 		}
+		text += "\nImport this link into your V2Ray client (e.g., v2rayNG, Streisand)."
 	}
 
 	payload := map[string]interface{}{
@@ -262,11 +278,67 @@ func notifyTelegramBot(user models.User, sub models.Subscription) {
 		"parse_mode": "Markdown",
 	}
 
-	jsonData, err := json.Marshal(payload)
+	jsonData, _ := json.Marshal(payload)
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+	http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+}
+
+func sendWGConfigFile(botToken string, user models.User, sub models.Subscription) {
+	// Use Telegram's sendDocument with multipart form data
+	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", botToken)
+
+	var caption string
+	if user.Language == "fa" {
+		caption = "✅ کانفیگ WireGuard شما آماده است!\n"
+		if sub.ExpiryDate.Year() > 2000 {
+			caption += fmt.Sprintf("📅 انقضا: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+		}
+		caption += "\nاین فایل را در اپلیکیشن WireGuard ایمپورت کنید."
+	} else {
+		caption = "✅ Your WireGuard Config is Ready!\n"
+		if sub.ExpiryDate.Year() > 2000 {
+			caption += fmt.Sprintf("📅 Expires: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+		}
+		caption += "\nImport this file into your WireGuard app."
+	}
+
+	// Build multipart form
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	writer.WriteField("chat_id", fmt.Sprintf("%d", user.TelegramID))
+	writer.WriteField("caption", caption)
+
+	// Create the .conf file part
+	filename := fmt.Sprintf("wg_%s.conf", sub.UUID)
+	part, err := writer.CreateFormFile("document", filename)
 	if err != nil {
+		log.Println("Failed to create form file for WG config:", err)
+		return
+	}
+	part.Write([]byte(sub.ConfigLink))
+	writer.Close()
+
+	http.Post(apiURL, writer.FormDataContentType(), &body)
+}
+
+func sendRejectionNotification(user models.User) {
+	botToken := os.Getenv("BOT_TOKEN")
+	if botToken == "" {
 		return
 	}
 
+	var text string
+	if user.Language == "fa" {
+		text = "❌ پرداخت شما رد شد. در صورت مشکل با پشتیبانی تماس بگیرید."
+	} else {
+		text = "❌ Your payment was rejected. Please contact support if you believe this is an error."
+	}
+
+	payload := map[string]interface{}{
+		"chat_id": user.TelegramID,
+		"text":    text,
+	}
+	jsonData, _ := json.Marshal(payload)
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 	http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 }

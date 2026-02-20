@@ -20,6 +20,10 @@ class AddPlanForm(StatesGroup):
 class EditPlanForm(StatesGroup):
     waiting_for_new_value = State()
 
+class AddEndpointForm(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_address = State()
+
 def is_admin(telegram_id: int) -> bool:
     return bool(ADMIN_ID and str(telegram_id) == ADMIN_ID)
 
@@ -33,6 +37,7 @@ async def show_admin_panel(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Add New Plan", callback_data="admin_add_plan")],
         [InlineKeyboardButton(text="✏️ Edit Existing Plan", callback_data="admin_list_plans")],
+        [InlineKeyboardButton(text="🌍 Manage Endpoints (WG)", callback_data="admin_endpoints")],
         [InlineKeyboardButton(text="🔙 Back to Main Menu", callback_data="main_menu")]
     ])
     
@@ -265,3 +270,89 @@ async def process_edit_plan_value(message: types.Message, state: FSMContext):
             await message.answer("❌ Backend error.")
             
     await state.clear()
+
+# --- Endpoint Management ---
+@router.callback_query(F.data == "admin_endpoints")
+async def admin_endpoints_list(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Unauthorized", show_alert=True)
+        return
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/endpoints?all=true")
+            endpoints = resp.json()
+            
+            buttons = []
+            for ep in endpoints:
+                status = "✅" if ep.get('is_active') else "❌"
+                btn_text = f"{status} {ep.get('name')} — {ep.get('address')}"
+                buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"admin_ep_toggle_{ep.get('ID')}_{ep.get('is_active')}")])
+            
+            buttons.append([InlineKeyboardButton(text="➕ Add Endpoint", callback_data="admin_add_ep")])
+            buttons.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_panel")])
+            
+            text = "🌍 **WireGuard Endpoints**\n\nTap an endpoint to toggle its status:\n" if endpoints else "No endpoints yet. Add one!"
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
+        except Exception:
+            await callback.answer("Backend error.", show_alert=True)
+
+@router.callback_query(F.data.startswith("admin_ep_toggle_"))
+async def admin_ep_toggle(callback: types.CallbackQuery):
+    parts = callback.data.split("_")
+    ep_id = parts[3]
+    current = parts[4].lower() == "true"
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.patch(f"{API_BASE_URL}/endpoints/{ep_id}", json={"is_active": not current})
+            if resp.status_code == 200:
+                await callback.answer("Toggled!")
+            else:
+                await callback.answer("Failed.", show_alert=True)
+        except Exception:
+            await callback.answer("Backend error.", show_alert=True)
+    
+    # Refresh list
+    await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Refresh", callback_data="admin_endpoints")]
+    ]))
+
+@router.callback_query(F.data == "admin_add_ep")
+async def admin_add_ep_start(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Unauthorized", show_alert=True)
+        return
+    
+    await callback.message.answer("Enter the endpoint **display name** (e.g. 🇩🇪 Germany):", parse_mode="Markdown")
+    await state.set_state(AddEndpointForm.waiting_for_name)
+
+@router.message(AddEndpointForm.waiting_for_name)
+async def admin_add_ep_name(message: types.Message, state: FSMContext):
+    await state.update_data(ep_name=message.text.strip())
+    await message.answer("Enter the endpoint **address** (e.g. `de.server.com:51820`):", parse_mode="Markdown")
+    await state.set_state(AddEndpointForm.waiting_for_address)
+
+@router.message(AddEndpointForm.waiting_for_address)
+async def admin_add_ep_address(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{API_BASE_URL}/endpoints", json={
+                "name": data.get("ep_name"),
+                "address": message.text.strip(),
+                "is_active": True
+            })
+            if resp.status_code == 201:
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton("🔙 Back to Endpoints", callback_data="admin_endpoints")]
+                ])
+                await message.answer(f"✅ Endpoint added: **{data.get('ep_name')}** — `{message.text.strip()}`", parse_mode="Markdown", reply_markup=markup)
+            else:
+                await message.answer("❌ Failed to add endpoint.")
+        except Exception:
+            await message.answer("❌ Backend error.")
+    
+    await state.clear()
+

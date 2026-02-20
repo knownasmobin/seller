@@ -43,4 +43,12 @@ func SetupRoutes(router fiber.Router) {
 	// Webhook Routes
 	webhooks := router.Group("/webhooks")
 	webhooks.Post("/oxapay", controllers.OxapayCallback)
+
+	// WireGuard Endpoint Routes (Admin managed)
+	endpoints := router.Group("/endpoints")
+	endpoints.Get("/", controllers.GetEndpoints)
+	endpoints.Get("/:id", controllers.GetEndpoint)
+	endpoints.Post("/", controllers.CreateEndpoint)
+	endpoints.Patch("/:id", controllers.UpdateEndpoint)
+	endpoints.Delete("/:id", controllers.DeleteEndpoint)
 }

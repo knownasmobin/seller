@@ -16,11 +16,13 @@ class PaymentState(StatesGroup):
 
 @router.callback_query(F.data.startswith("pay_card_"))
 async def process_card_payment(callback: CallbackQuery, state: FSMContext):
-    plan_id = callback.data.split("_")[-1]
+    parts = callback.data.split("_")
+    plan_id = parts[2]
+    endpoint_id = int(parts[3]) if len(parts) > 3 else 0
     lang = await get_user_lang(callback.from_user.id)
 
-    # Save plan ID in context
-    await state.update_data(plan_id=plan_id)
+    # Save plan ID and endpoint ID in context
+    await state.update_data(plan_id=plan_id, endpoint_id=endpoint_id)
 
     text = (
         f"💳 Please transfer the amount to this card number:\n"
@@ -41,6 +43,7 @@ ADMIN_ID = os.getenv("ADMIN_ID", "123456789")  # Ideally set this in .env
 async def process_screenshot(message: Message, state: FSMContext, bot):
     data = await state.get_data()
     plan_id = data.get("plan_id")
+    endpoint_id = data.get("endpoint_id", 0)
     lang = await get_user_lang(message.from_user.id)
 
     file_id = message.photo[-1].file_id
@@ -58,6 +61,7 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
             order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
                 "telegram_id": message.from_user.id,
                 "plan_id": int(plan_id),
+                "endpoint_id": int(endpoint_id),
                 "payment_method": "card",
                 "amount": float(real_price_irr)
             })
@@ -131,13 +135,11 @@ async def process_reject_order(callback: CallbackQuery, bot):
 
 @router.callback_query(F.data.startswith("pay_crypto_"))
 async def process_crypto_payment(callback: CallbackQuery):
-    plan_id = callback.data.split("_")[-1]
+    parts = callback.data.split("_")
+    plan_id = parts[2]
+    endpoint_id = int(parts[3]) if len(parts) > 3 else 0
     lang = await get_user_lang(callback.from_user.id)
 
-    # In a real app, we would make a POST to our Go backend to create the Order and get the Oxapay Link
-    # Since we didn't expose an Oxapay specific endpoint in Go yet, we will mock the URL generation here
-    # or pretend the backend does it.
-    
     text = (
         "🔗 Generating your Crypto payment link..."
     ) if lang == "en" else (
@@ -159,6 +161,7 @@ async def process_crypto_payment(callback: CallbackQuery):
             order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
                 "telegram_id": callback.from_user.id,
                 "plan_id": int(plan_id),
+                "endpoint_id": int(endpoint_id),
                 "payment_method": "crypto",
                 "amount": float(real_price_usdt)
             })

@@ -46,6 +46,7 @@ type Order struct {
 	ID            uint           `gorm:"primaryKey" json:"ID"`
 	UserID        uint           `json:"user_id"`
 	PlanID        uint           `json:"plan_id"`
+	EndpointID    uint           `json:"endpoint_id"` // For WireGuard endpoint selection
 	Amount        float64        `json:"amount"`
 	PaymentMethod string         `gorm:"size:20" json:"payment_method"`
 	PaymentStatus string         `gorm:"size:20;default:'pending'" json:"payment_status"`
@@ -69,4 +70,15 @@ type Subscription struct {
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+}
+
+// Endpoint represents a WireGuard server endpoint that admin can manage
+type Endpoint struct {
+	ID        uint           `gorm:"primaryKey" json:"ID"`
+	Name      string         `gorm:"size:100" json:"name"`    // e.g. "🇩🇪 Germany", "🇳🇱 Netherlands"
+	Address   string         `gorm:"size:200" json:"address"` // e.g. "de.example.com:51820"
+	IsActive  bool           `gorm:"default:true" json:"is_active"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
