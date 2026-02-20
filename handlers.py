@@ -179,12 +179,78 @@ async def process_get_v2ray_link(callback: CallbackQuery):
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📥 Get Connections (Individual)" if lang == "en" else "📥 دریافت کانفیگ‌های مجزا", callback_data=f"get_v2ray_configs_{sub_id}")],
                 [InlineKeyboardButton(text="🔙 Back to My Configs" if lang == "en" else "🔙 بازگشت به سرویس‌های من", callback_data="my_configs")]
             ])
             await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             logging.error(f"[GetV2RayLink] Error for user {callback.from_user.id}: {e}")
             await callback.answer("Backend error.", show_alert=True)
+
+@router.callback_query(F.data.startswith("get_v2ray_configs_"))
+async def process_get_v2ray_configs(callback: CallbackQuery):
+    sub_id = callback.data.split("_")[-1]
+    lang = await get_user_lang(callback.from_user.id)
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions")
+            subs = resp.json()
+            
+            link = ""
+            for sub in subs:
+                if str(sub.get("ID")) == sub_id:
+                    link = sub.get("config_link", "")
+                    break
+            
+            if not link:
+                msg = "Connection link not found." if lang == "en" else "لینک اتصال یافت نشد."
+                await callback.answer(msg, show_alert=True)
+                return
+
+            if link.startswith("http"):
+                idx = link.find("http", 1)
+                if idx > 0:
+                    link = link[idx:]
+            
+            # Fetch the actual subscription content from Marzban
+            sub_resp = await client.get(link)
+            if sub_resp.status_code != 200:
+                msg = "Failed to fetch configs from server." if lang == "en" else "خطا در دریافت کانفیگ‌ها از سرور."
+                await callback.answer(msg, show_alert=True)
+                return
+            
+            import base64
+            try:
+                # Subscription links are base64 encoded
+                decoded_configs = base64.b64decode(sub_resp.text).decode('utf-8').strip()
+            except Exception as e:
+                # Fallback if not base64
+                decoded_configs = sub_resp.text.strip()
+            
+            if not decoded_configs:
+                msg = "No specific configs found in the subscription." if lang == "en" else "کانفیگ مجازی در این اشتراک یافت نشد."
+                await callback.answer(msg, show_alert=True)
+                return
+                
+            configs_list = decoded_configs.split('\n')
+            
+            text = "📥 <b>Your Individual Connections:</b>\n\n" if lang == "en" else "📥 <b>کانفیگ‌های مجزای شما:</b>\n\n"
+            for conf in configs_list:
+                if conf.strip():
+                    # Identify protocol
+                    proto = conf.split("://")[0].upper() if "://" in conf else "Config"
+                    text += f"🔹 <b>{proto}</b>\n<code>{conf.strip()}</code>\n\n"
+                    
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data=f"get_v2ray_link_{sub_id}")],
+                [InlineKeyboardButton(text="🔙 My Configs" if lang == "en" else "🔙 سرویس‌های من", callback_data="my_configs")]
+            ])
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        except Exception as e:
+            logging.error(f"[GetV2RayConfigs] Error for user {callback.from_user.id}: {e}")
+            await callback.answer("Error parsing connections.", show_alert=True)
 
 @router.callback_query(F.data == "main_menu")
 async def process_main_menu_back(callback: CallbackQuery):
