@@ -136,4 +136,49 @@ async def process_main_menu_back(callback: CallbackQuery):
     )
 
     from keyboards import get_main_menu
-    await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang))
+    admin_id = os.getenv("ADMIN_ID")
+    is_admin = bool(admin_id and str(callback.from_user.id) == admin_id)
+    await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
+
+@router.callback_query(F.data == "change_lang")
+async def process_change_lang(callback: CallbackQuery):
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang_en")],
+        [InlineKeyboardButton(text="🇮🇷 فارسی", callback_data="set_lang_fa")],
+        [InlineKeyboardButton(text="🔙 Back", callback_data="main_menu")]
+    ])
+    await callback.message.edit_text("🌐 Choose your language / زبان را انتخاب کنید:", reply_markup=markup)
+
+@router.callback_query(F.data.startswith("set_lang_"))
+async def process_set_lang(callback: CallbackQuery):
+    lang = callback.data.split("_")[-1]  # "en" or "fa"
+    
+    # Update language in backend
+    async with httpx.AsyncClient() as client:
+        try:
+            await client.post(f"{API_BASE_URL}/users/", json={
+                "telegram_id": callback.from_user.id,
+                "language": lang
+            })
+        except Exception:
+            pass
+    
+    msg = "✅ Language set to English!" if lang == "en" else "✅ زبان به فارسی تغییر کرد!"
+    await callback.answer(msg, show_alert=True)
+    
+    # Go back to main menu
+    from keyboards import get_main_menu
+    admin_id = os.getenv("ADMIN_ID")
+    is_admin = bool(admin_id and str(callback.from_user.id) == admin_id)
+    
+    welcome_text = (
+        "👋 Welcome back to the Main Menu!\n\n"
+        "Please select an option below:"
+    ) if lang == "en" else (
+        "👋 به منوی اصلی بازگشتید!\n\n"
+        "لطفا یک گزینه را انتخاب کنید:"
+    )
+    await callback.message.edit_text(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
+

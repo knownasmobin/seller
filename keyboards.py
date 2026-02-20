@@ -37,9 +37,12 @@ def get_protocol_menu(lang: str) -> InlineKeyboardMarkup:
 def get_plans_menu(plans: list, lang: str) -> InlineKeyboardMarkup:
     buttons = []
     for plan in plans:
-        # e.g., plan = {"ID": 1, "DurationDays": 30, "DataLimitGB": 50, "PriceIRR": 100000, "PriceUSDT": 2.5}
-        title = f"{plan['DurationDays']} Days - {plan['DataLimitGB']}GB" if lang == "en" else f"{plan['DurationDays']} روز - {plan['DataLimitGB']} گیگ"
-        buttons.append([InlineKeyboardButton(text=title, callback_data=f"select_plan_{plan['ID']}")])
+        duration = plan.get('duration_days', plan.get('DurationDays', '?'))
+        data_gb = plan.get('data_limit_gb', plan.get('DataLimitGB', '?'))
+        plan_id = plan.get('ID', plan.get('id', 0))
+        
+        title = f"{duration} Days - {data_gb}GB" if lang == "en" else f"{duration} روز - {data_gb} گیگ"
+        buttons.append([InlineKeyboardButton(text=title, callback_data=f"select_plan_{plan_id}")])
     
     text_back = "🔙 Back" if lang == "en" else "🔙 بازگشت"
     buttons.append([InlineKeyboardButton(text=text_back, callback_data="buy_menu")])
