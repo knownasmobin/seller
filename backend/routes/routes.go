@@ -3,6 +3,9 @@ package routes
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/username/sell-bot-backend/controllers"
+
+	"github.com/gofiber/swagger"
+	_ "github.com/username/sell-bot-backend/docs"
 )
 
 func SetupRoutes(router fiber.Router) {
@@ -12,6 +15,9 @@ func SetupRoutes(router fiber.Router) {
 			"message": "Welcome to the VPN Sell Bot API",
 		})
 	})
+
+	// Swagger Documentation
+	router.Get("/swagger/*", swagger.HandlerDefault)
 
 	// User Routes
 	users := router.Group("/users")

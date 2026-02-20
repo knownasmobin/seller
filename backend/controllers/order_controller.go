@@ -10,16 +10,25 @@ import (
 	"github.com/username/sell-bot-backend/payment"
 )
 
-// CreateOrder handles generating a new order for a user buying a plan
-func CreateOrder(c *fiber.Ctx) error {
-	type Request struct {
-		TelegramID    int64   `json:"telegram_id"`
-		PlanID        uint    `json:"plan_id"`
-		PaymentMethod string  `json:"payment_method"`
-		Amount        float64 `json:"amount"`
-	}
+// CreateOrderRequest represents the body for CreateOrder API
+type CreateOrderRequest struct {
+	TelegramID    int64   `json:"telegram_id"`
+	PlanID        uint    `json:"plan_id"`
+	PaymentMethod string  `json:"payment_method"`
+	Amount        float64 `json:"amount"`
+}
 
-	var req Request
+// CreateOrder handles generating a new order for a user buying a plan
+// @Summary Create an order
+// @Description Creates an order and returns payment link if method is crypto
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param request body CreateOrderRequest true "Order Details"
+// @Success 201 {object} map[string]interface{}
+// @Router /orders [post]
+func CreateOrder(c *fiber.Ctx) error {
+	var req CreateOrderRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
@@ -69,6 +78,13 @@ func CreateOrder(c *fiber.Ctx) error {
 }
 
 // GetUserOrders returns all orders for a given telegram ID
+// @Summary Get all user orders
+// @Description Returns all orders for a given Telegram ID
+// @Tags Orders
+// @Produce json
+// @Param telegram_id path int64 true "Telegram User ID"
+// @Success 200 {array} models.Order
+// @Router /users/{telegram_id}/orders [get]
 func GetUserOrders(c *fiber.Ctx) error {
 	telegramID := c.Params("telegram_id")
 

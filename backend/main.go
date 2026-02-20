@@ -24,6 +24,11 @@ func init() {
 	database.SeedServers()
 }
 
+// @title VPN Sell Bot API
+// @version 1.0
+// @description REST API for VPN Sell Bot Backend
+// @host localhost:3000
+// @BasePath /api/v1
 func main() {
 	app := fiber.New(fiber.Config{
 		AppName: "VPN Sell Bot API v1.0",

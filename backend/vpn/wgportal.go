@@ -11,59 +11,94 @@ import (
 )
 
 type WgPortalClient struct {
-	BaseURL string
-	APIKey  string
-	Client  *http.Client
+	BaseURL  string
+	Username string
+	Password string
+	Client   *http.Client
 }
 
-func NewWgPortalClient(baseURL, apiKey string) *WgPortalClient {
+func NewWgPortalClient(baseURL, username, password string) *WgPortalClient {
 	return &WgPortalClient{
-		BaseURL: baseURL,
-		APIKey:  apiKey,
+		BaseURL:  baseURL,
+		Username: username,
+		Password: password,
 		Client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
 }
 
-// CreatePeer creates a new wireguard peer configuration
+// CreatePeer creates a new wireguard peer configuration via the H44Z WgPortal API
 func (w *WgPortalClient) CreatePeer(username string) (string, error) {
-	url := fmt.Sprintf("%s/api/peers", w.BaseURL)
-
-	payload := map[string]interface{}{
-		"name": username,
-	}
-
-	jsonData, err := json.Marshal(payload)
+	// 1. Get available interfaces to find the InterfaceIdentifier (usually "wg0")
+	reqAuth, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/interface/all", w.BaseURL), nil)
+	reqAuth.SetBasicAuth(w.Username, w.Password)
+	resp1, err := w.Client.Do(reqAuth)
 	if err != nil {
 		return "", err
 	}
+	defer resp1.Body.Close()
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if resp1.StatusCode != 200 {
+		return "", fmt.Errorf("failed to fetch interfaces, status: %d", resp1.StatusCode)
+	}
+
+	var interfaces []map[string]interface{}
+	body1, _ := ioutil.ReadAll(resp1.Body)
+	json.Unmarshal(body1, &interfaces)
+
+	if len(interfaces) == 0 {
+		return "", errors.New("no wireguard interfaces found in wg-portal")
+	}
+
+	interfaceID := interfaces[0]["Identifier"].(string)
+
+	// 2. Provision the new peer
+	provReq := map[string]interface{}{
+		"InterfaceIdentifier": interfaceID,
+		"DisplayName":         username,
+	}
+
+	provJSON, _ := json.Marshal(provReq)
+	reqProv, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/provisioning/new-peer", w.BaseURL), bytes.NewBuffer(provJSON))
+	reqProv.SetBasicAuth(w.Username, w.Password)
+	reqProv.Header.Set("Content-Type", "application/json")
+
+	resp2, err := w.Client.Do(reqProv)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+w.APIKey)
-	req.Header.Set("Content-Type", "application/json")
+	defer resp2.Body.Close()
 
-	resp, err := w.Client.Do(req)
+	if resp2.StatusCode != 200 {
+		bodyErr, _ := ioutil.ReadAll(resp2.Body)
+		return "", fmt.Errorf("failed to provision peer, status: %d, response: %s", resp2.StatusCode, string(bodyErr))
+	}
+
+	var peerData map[string]interface{}
+	body2, _ := ioutil.ReadAll(resp2.Body)
+	json.Unmarshal(body2, &peerData)
+
+	peerPubKey, ok := peerData["Identifier"].(string)
+	if !ok {
+		return "", errors.New("failed to parse peer public key from provisioning response")
+	}
+
+	// 3. Fetch the configuration file for the newly created peer
+	configURL := fmt.Sprintf("%s/api/v1/provisioning/data/peer-config?PeerId=%s", w.BaseURL, peerPubKey)
+	reqConf, _ := http.NewRequest("GET", configURL, nil)
+	reqConf.SetBasicAuth(w.Username, w.Password)
+
+	resp3, err := w.Client.Do(reqConf)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer resp3.Body.Close()
 
-	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		return "", fmt.Errorf("failed to create wg peer, status: %d", resp.StatusCode)
+	if resp3.StatusCode != 200 {
+		return "", fmt.Errorf("failed to fetch peer config, status: %d", resp3.StatusCode)
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
-
-	// WG config string is usually returned in the API or can be fetched via /api/peers/{id}/config
-	if config, ok := result["configuration"].(string); ok {
-		return config, nil
-	}
-
-	return "", errors.New("no wireguard config found in response")
+	configBytes, _ := ioutil.ReadAll(resp3.Body)
+	return string(configBytes), nil
 }

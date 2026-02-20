@@ -7,6 +7,13 @@ import (
 )
 
 // GetActivePlans returns all active plans, optionally filtered by server_type
+// @Summary Get active plans
+// @Description Returns all active plans, optionally filtered by server_type (v2ray or wireguard)
+// @Tags Plans
+// @Produce json
+// @Param type query string false "Server type (v2ray or wireguard)"
+// @Success 200 {array} models.Plan
+// @Router /plans [get]
 func GetActivePlans(c *fiber.Ctx) error {
 	serverType := c.Query("type") // e.g., ?type=v2ray
 
@@ -25,6 +32,14 @@ func GetActivePlans(c *fiber.Ctx) error {
 }
 
 // CreatePlan Admin endpoint to create new plans
+// @Summary Create a new plan
+// @Description Admin endpoint to create new plans
+// @Tags Plans
+// @Accept json
+// @Produce json
+// @Param request body models.Plan true "Plan Details"
+// @Success 201 {object} models.Plan
+// @Router /plans [post]
 func CreatePlan(c *fiber.Ctx) error {
 	plan := new(models.Plan)
 	if err := c.BodyParser(plan); err != nil {

@@ -41,11 +41,13 @@ func SeedServers() {
 	}
 
 	wgURL := os.Getenv("WGPORTAL_URL")
-	wgKey := os.Getenv("WGPORTAL_API_KEY")
+	wgUser := os.Getenv("WGPORTAL_USERNAME")
+	wgPass := os.Getenv("WGPORTAL_PASSWORD")
 
-	if wgURL != "" && wgKey != "" {
+	if wgURL != "" && wgUser != "" && wgPass != "" {
 		creds, _ := json.Marshal(map[string]string{
-			"apiKey": wgKey,
+			"username": wgUser,
+			"password": wgPass,
 		})
 
 		wgServer := models.Server{

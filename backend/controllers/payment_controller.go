@@ -118,9 +118,10 @@ func provisionVPNForOrder(order *models.Order) {
 			log.Println("Marzban User Create Error:", err)
 		}
 	} else if plan.ServerType == "wireguard" {
-		apiKey := creds["apiKey"]
+		wgUser := creds["username"]
+		wgPass := creds["password"]
 
-		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], apiKey)
+		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], wgUser, wgPass)
 		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 		if peerConf, err := client.CreatePeer(username); err == nil {
 			configLink = "WireGuard Config Data Created" // Or upload to file and serve

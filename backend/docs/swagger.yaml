@@ -1,0 +1,301 @@
+basePath: /api/v1
+definitions:
+  controllers.CreateOrderRequest:
+    properties:
+      amount:
+        type: number
+      payment_method:
+        type: string
+      plan_id:
+        type: integer
+      telegram_id:
+        type: integer
+    type: object
+  controllers.GetOrCreateUserRequest:
+    properties:
+      language:
+        type: string
+      telegram_id:
+        type: integer
+    type: object
+  controllers.UpdateUserBalanceRequest:
+    properties:
+      amount:
+        type: number
+    type: object
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  models.Order:
+    properties:
+      amount:
+        format: float64
+        type: number
+      createdAt:
+        type: string
+      cryptoTxID:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      paymentMethod:
+        description: '"card", "crypto"'
+        type: string
+      paymentStatus:
+        description: '"pending", "approved", "rejected"'
+        type: string
+      planID:
+        type: integer
+      proofImageID:
+        type: string
+      updatedAt:
+        type: string
+      userID:
+        type: integer
+    type: object
+  models.Plan:
+    properties:
+      createdAt:
+        type: string
+      dataLimitGB:
+        format: float64
+        type: number
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      durationDays:
+        type: integer
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      priceIRR:
+        format: float64
+        type: number
+      priceUSDT:
+        format: float64
+        type: number
+      serverType:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  models.Subscription:
+    properties:
+      configLink:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      expiryDate:
+        type: string
+      id:
+        type: integer
+      planID:
+        type: integer
+      serverID:
+        type: integer
+      startDate:
+        type: string
+      status:
+        description: '"active", "expired", "disabled"'
+        type: string
+      updatedAt:
+        type: string
+      userID:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  models.User:
+    properties:
+      balance:
+        type: number
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      isAdmin:
+        type: boolean
+      language:
+        type: string
+      telegramID:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact: {}
+  description: REST API for VPN Sell Bot Backend
+  title: VPN Sell Bot API
+  version: "1.0"
+paths:
+  /orders:
+    post:
+      consumes:
+      - application/json
+      description: Creates an order and returns payment link if method is crypto
+      parameters:
+      - description: Order Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create an order
+      tags:
+      - Orders
+  /plans:
+    get:
+      description: Returns all active plans, optionally filtered by server_type (v2ray
+        or wireguard)
+      parameters:
+      - description: Server type (v2ray or wireguard)
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Plan'
+            type: array
+      summary: Get active plans
+      tags:
+      - Plans
+    post:
+      consumes:
+      - application/json
+      description: Admin endpoint to create new plans
+      parameters:
+      - description: Plan Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Plan'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Plan'
+      summary: Create a new plan
+      tags:
+      - Plans
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: Fetches a user by telegram_id, creates one if it doesn't exist
+      parameters:
+      - description: User Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.GetOrCreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+      summary: Fetch or create a user
+      tags:
+      - Users
+  /users/{telegram_id}/balance:
+    patch:
+      consumes:
+      - application/json
+      description: Adds or subtracts balance from a user's account
+      parameters:
+      - description: Telegram User ID
+        format: int64
+        in: path
+        name: telegram_id
+        required: true
+        type: integer
+      - description: Amount to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateUserBalanceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+      summary: Update user balance
+      tags:
+      - Users
+  /users/{telegram_id}/orders:
+    get:
+      description: Returns all orders for a given Telegram ID
+      parameters:
+      - description: Telegram User ID
+        format: int64
+        in: path
+        name: telegram_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Order'
+            type: array
+      summary: Get all user orders
+      tags:
+      - Orders
+  /users/{telegram_id}/subscriptions:
+    get:
+      description: Returns all subscriptions for a given Telegram ID
+      parameters:
+      - description: Telegram User ID
+        format: int64
+        in: path
+        name: telegram_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Subscription'
+            type: array
+      summary: Get all user subscriptions
+      tags:
+      - Subscriptions
+swagger: "2.0"

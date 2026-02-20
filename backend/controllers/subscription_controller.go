@@ -7,6 +7,13 @@ import (
 )
 
 // GetUserSubscriptions returns all subscriptions for a given telegram ID
+// @Summary Get all user subscriptions
+// @Description Returns all subscriptions for a given Telegram ID
+// @Tags Subscriptions
+// @Produce json
+// @Param telegram_id path int64 true "Telegram User ID"
+// @Success 200 {array} models.Subscription
+// @Router /users/{telegram_id}/subscriptions [get]
 func GetUserSubscriptions(c *fiber.Ctx) error {
 	telegramID := c.Params("telegram_id")
 
