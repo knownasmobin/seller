@@ -2,10 +2,12 @@ package vpn
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -25,7 +27,10 @@ func NewMarzbanClient(baseURL, username, password string) *MarzbanClient {
 		Username: username,
 		Password: password,
 		Client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
 		},
 	}
 }
@@ -39,32 +44,37 @@ func (m *MarzbanClient) Login() error {
 	formData.Set("username", m.Username)
 	formData.Set("password", m.Password)
 
+	log.Printf("[Marzban] Attempting login to %s as user '%s'", apiURL, m.Username)
+
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(formData.Encode()))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create login request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := m.Client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to connect to Marzban at %s: %v", apiURL, err)
 	}
 	defer resp.Body.Close()
 
+	body, _ := ioutil.ReadAll(resp.Body)
+
 	if resp.StatusCode != 200 {
-		return errors.New("failed to login to Marzban")
+		log.Printf("[Marzban] Login failed. Status: %d, Response: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("marzban login failed (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
 
 	if token, ok := result["access_token"].(string); ok {
 		m.Token = token
+		log.Printf("[Marzban] Login successful")
 		return nil
 	}
 
-	return errors.New("token not found in response")
+	return fmt.Errorf("token not found in response: %s", string(body))
 }
 
 // CreateUser creates a new VPN user in Marzban
