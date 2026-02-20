@@ -71,6 +71,77 @@ func OxapayCallback(c *fiber.Ctx) error {
 	return c.SendString("OK")
 }
 
+// ApproveOrder is called by the bot when admin approves a card payment.
+// @Summary Approve an order
+// @Description Admin approves a card payment, triggering VPN provisioning
+// @Tags Orders
+// @Produce json
+// @Param id path int true "Order ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /orders/{id}/approve [post]
+func ApproveOrder(c *fiber.Ctx) error {
+	orderID := c.Params("id")
+
+	var order models.Order
+	if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Order not found"})
+	}
+
+	if order.PaymentStatus == "approved" {
+		return c.JSON(fiber.Map{"message": "Already approved"})
+	}
+
+	order.PaymentStatus = "approved"
+	database.DB.Save(&order)
+
+	// Provision VPN and notify user
+	provisionVPNForOrder(&order)
+
+	// Find the user to return their telegram_id
+	var user models.User
+	database.DB.Where("id = ?", order.UserID).First(&user)
+
+	return c.JSON(fiber.Map{
+		"message":     "Order approved and VPN provisioned",
+		"order_id":    order.ID,
+		"telegram_id": user.TelegramID,
+	})
+}
+
+// RejectOrder is called by the bot when admin rejects a card payment.
+// @Summary Reject an order
+// @Description Admin rejects a card payment
+// @Tags Orders
+// @Produce json
+// @Param id path int true "Order ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /orders/{id}/reject [post]
+func RejectOrder(c *fiber.Ctx) error {
+	orderID := c.Params("id")
+
+	var order models.Order
+	if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Order not found"})
+	}
+
+	order.PaymentStatus = "rejected"
+	database.DB.Save(&order)
+
+	var user models.User
+	database.DB.Where("id = ?", order.UserID).First(&user)
+
+	// Notify user about rejection
+	notifyTelegramBot(user, models.Subscription{
+		ConfigLink: "❌ Your payment was rejected.",
+	})
+
+	return c.JSON(fiber.Map{
+		"message":     "Order rejected",
+		"order_id":    order.ID,
+		"telegram_id": user.TelegramID,
+	})
+}
+
 // provisionVPNForOrder provisions the account through Marzban or WgPortal and creates a Subscription.
 func provisionVPNForOrder(order *models.Order) {
 	var plan models.Plan
@@ -124,9 +195,9 @@ func provisionVPNForOrder(order *models.Order) {
 		client := vpn.NewWgPortalClient(server.APIUrl[:len(server.APIUrl)-4], wgUser, wgPass)
 		username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 		if peerConf, err := client.CreatePeer(username); err == nil {
-			configLink = "WireGuard Config Data Created" // Or upload to file and serve
+			configLink = peerConf // We store the raw multiline .conf here
 			uuidStr = username
-			log.Println("Created WG Peer:", peerConf)
+			log.Println("Created WG Peer:", username)
 		} else {
 			log.Println("WG Port Create Error:", err)
 		}
@@ -151,21 +222,42 @@ func provisionVPNForOrder(order *models.Order) {
 	database.DB.Create(&sub)
 
 	// Try notifying Bot to send message back to User
-	notifyTelegramBot(user.TelegramID, sub)
+	notifyTelegramBot(user, sub)
 }
 
-func notifyTelegramBot(telegramID int64, sub models.Subscription) {
+func notifyTelegramBot(user models.User, sub models.Subscription) {
 	botToken := os.Getenv("BOT_TOKEN")
 	if botToken == "" {
 		return
 	}
 
-	text := "✅ **Your VPN Config is Ready!**\n\n"
-	text += fmt.Sprintf("🔗 Link/Config: `%s`\n", sub.ConfigLink)
-	text += fmt.Sprintf("📅 Expires: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+	var text string
+	if user.Language == "fa" {
+		text = "✅ **کانفیگ VPN شما آماده است!**\n\n"
+		if len(sub.ConfigLink) > 0 && sub.ConfigLink[0] == '[' { // Looks like Wireguard raw config
+			text += "🔗 فایل/متن کانفیگ (WireGuard):\n"
+			text += fmt.Sprintf("```ini\n%s\n```\n\n", sub.ConfigLink)
+		} else {
+			text += fmt.Sprintf("🔗 لینک کانفیگ: `%s`\n", sub.ConfigLink)
+		}
+		if sub.ExpiryDate.Year() > 2000 {
+			text += fmt.Sprintf("📅 انقضا: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+		}
+	} else {
+		text = "✅ **Your VPN Config is Ready!**\n\n"
+		if len(sub.ConfigLink) > 0 && sub.ConfigLink[0] == '[' {
+			text += "🔗 Config Text (WireGuard):\n"
+			text += fmt.Sprintf("```ini\n%s\n```\n\n", sub.ConfigLink)
+		} else {
+			text += fmt.Sprintf("🔗 Link/Config: `%s`\n", sub.ConfigLink)
+		}
+		if sub.ExpiryDate.Year() > 2000 {
+			text += fmt.Sprintf("📅 Expires: %s\n", sub.ExpiryDate.Format("2006-01-02"))
+		}
+	}
 
 	payload := map[string]interface{}{
-		"chat_id":    telegramID,
+		"chat_id":    user.TelegramID,
 		"text":       text,
 		"parse_mode": "Markdown",
 	}

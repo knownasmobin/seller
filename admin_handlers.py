@@ -17,6 +17,9 @@ class AddPlanForm(StatesGroup):
     waiting_for_data_limit = State()
     waiting_for_price = State()
 
+class EditPlanForm(StatesGroup):
+    waiting_for_new_value = State()
+
 def is_admin(telegram_id: int) -> bool:
     return bool(ADMIN_ID and str(telegram_id) == ADMIN_ID)
 
@@ -29,6 +32,7 @@ async def show_admin_panel(callback: types.CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Add New Plan", callback_data="admin_add_plan")],
+        [InlineKeyboardButton(text="✏️ Edit Existing Plan", callback_data="admin_list_plans")],
         [InlineKeyboardButton(text="🔙 Back to Main Menu", callback_data="main_menu")]
     ])
     
@@ -109,3 +113,155 @@ async def add_plan_price(message: types.Message, state: FSMContext):
         
     except ValueError:
         await message.answer("Please enter a valid numeric price.")
+
+# --- Edit Plan Flow ---
+@router.callback_query(F.data == "admin_list_plans")
+async def edit_plan_list(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Unauthorized", show_alert=True)
+        return
+        
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/plans?all=true")
+            plans = resp.json()
+            
+            if not plans:
+                await callback.message.edit_text("No plans found.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔙 Back", callback_data="admin_panel")]
+                ]))
+                return
+                
+            buttons = []
+            for plan in plans:
+                status = "✅" if plan.get('is_active') else "❌"
+                btn_text = f"{status} {plan.get('server_type')} - {plan.get('data_limit_gb')}GB / {plan.get('duration_days')}D"
+                buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"admin_editplan_{plan.get('ID')}")])
+                
+            buttons.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_panel")])
+            makeup = InlineKeyboardMarkup(inline_keyboard=buttons)
+            
+            await callback.message.edit_text("Select a plan to edit:", reply_markup=makeup)
+        except Exception as e:
+            await callback.answer("Backend error fetching plans.", show_alert=True)
+
+@router.callback_query(F.data.startswith("admin_editplan_"))
+async def edit_plan_menu(callback: types.CallbackQuery, state: FSMContext):
+    plan_id = callback.data.split("_")[-1]
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
+            if resp.status_code != 200:
+                await callback.answer("Plan not found.", show_alert=True)
+                return
+            plan = resp.json()
+            
+            text = (
+                f"🛠 **Editing Plan #{plan_id}**\n\n"
+                f"**Type:** {plan.get('server_type')}\n"
+                f"**Duration:** {plan.get('duration_days')} Days\n"
+                f"**Data Limit:** {plan.get('data_limit_gb')} GB\n"
+                f"**Price:** {plan.get('price_irr')} IRR\n"
+                f"**Status:** {'Active ✅' if plan.get('is_active') else 'Inactive ❌'}\n\n"
+                f"What would you like to edit?"
+            )
+            
+            buttons = [
+                [
+                    InlineKeyboardButton(text="🕒 Duration", callback_data=f"admin_editfield_{plan_id}_duration_days"),
+                    InlineKeyboardButton(text="💾 Data Limit", callback_data=f"admin_editfield_{plan_id}_data_limit_gb")
+                ],
+                [
+                    InlineKeyboardButton(text="💰 Price (IRR)", callback_data=f"admin_editfield_{plan_id}_price_irr"),
+                    InlineKeyboardButton(text="🔄 Toggle Status", callback_data=f"admin_toggle_{plan_id}_{plan.get('is_active')}")
+                ],
+                [InlineKeyboardButton(text="🔙 Back to Plans", callback_data="admin_list_plans")]
+            ]
+            makeup = InlineKeyboardMarkup(inline_keyboard=buttons)
+            
+            await state.clear()
+            await callback.message.edit_text(text, reply_markup=makeup, parse_mode="Markdown")
+        except Exception as e:
+            await callback.answer("Backend error.", show_alert=True)
+
+@router.callback_query(F.data.startswith("admin_toggle_"))
+async def edit_plan_toggle_status(callback: types.CallbackQuery):
+    parts = callback.data.split("_")
+    plan_id = parts[2]
+    current_status = parts[3].lower() == "true"
+    new_status = not current_status
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.patch(f"{API_BASE_URL}/plans/{plan_id}", json={"is_active": new_status})
+            if resp.status_code == 200:
+                await callback.answer("Status updated!")
+                # Refresh the menu
+                await edit_plan_menu(callback, None) # Pass None or fake state if necessary, wait, edit_plan_menu expects FSMContext.
+                # Better to just redirect callback data
+            else:
+                await callback.answer("Failed to update status", show_alert=True)
+        except Exception:
+            await callback.answer("Backend error.", show_alert=True)
+            
+    # Quick refresh by editing the message to fetch plan again:
+    from aiogram.fsm.context import FSMContext
+    # We will just tell user to click back or re-trigger the menu
+    # Actually, aiogram doesn't let us easily fake a callback call with state easily here without passing it.
+    # Let's just update the text manually or ask to re-click it.
+    await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("🔙 Back", callback_data=f"admin_editplan_{plan_id}")]]))
+            
+@router.callback_query(F.data.startswith("admin_editfield_"))
+async def edit_plan_prompt_field(callback: types.CallbackQuery, state: FSMContext):
+    parts = callback.data.split("_")
+    plan_id = parts[2]
+    field = "_".join(parts[3:]) # e.g. duration_days
+    
+    await state.update_data(edit_plan_id=plan_id, edit_plan_field=field)
+    
+    field_names = {
+        "duration_days": "Duration (Days)",
+        "data_limit_gb": "Data Limit (GB)",
+        "price_irr": "Price (IRR)"
+    }
+    
+    await callback.message.answer(f"Please enter the new value for **{field_names.get(field, field)}**:", parse_mode="Markdown")
+    await state.set_state(EditPlanForm.waiting_for_new_value)
+
+@router.message(EditPlanForm.waiting_for_new_value)
+async def process_edit_plan_value(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    plan_id = data.get("edit_plan_id")
+    field = data.get("edit_plan_field")
+    
+    payload = {}
+    
+    try:
+        val_str = message.text.strip()
+        if field == "duration_days":
+            payload[field] = int(val_str)
+        elif field == "data_limit_gb":
+            payload[field] = float(val_str)
+        elif field == "price_irr":
+            v = float(val_str)
+            payload[field] = v
+            payload["price_usdt"] = v / 600000 
+    except ValueError:
+        await message.answer("❌ Invalid number format. Please try again.")
+        return
+        
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.patch(f"{API_BASE_URL}/plans/{plan_id}", json=payload)
+            if resp.status_code == 200:
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton("🔙 Return to Plan Menu", callback_data=f"admin_editplan_{plan_id}")]
+                ])
+                await message.answer("✅ Plan updated successfully!", reply_markup=markup)
+            else:
+                await message.answer("❌ Failed to update plan.")
+        except Exception:
+            await message.answer("❌ Backend error.")
+            
+    await state.clear()

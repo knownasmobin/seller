@@ -47,11 +47,19 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
 
     async with httpx.AsyncClient() as client:
         try:
+            # Fetch the actual plan to get the real price
+            plan_resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
+            if plan_resp.status_code != 200:
+                raise Exception("Plan not found")
+            plan_data = plan_resp.json()
+            real_price_irr = plan_data.get("price_irr", 0.0)
+
+            # Create the order
             order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
                 "telegram_id": message.from_user.id,
                 "plan_id": int(plan_id),
                 "payment_method": "card",
-                "amount": 100000.0  # In reality we fetch price from plan
+                "amount": float(real_price_irr)
             })
             order_data = order_resp.json()
             order_id = order_data.get("ID")
@@ -83,19 +91,43 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
 async def process_approve_order(callback: CallbackQuery, bot):
     order_id = callback.data.split("_")[-1]
     
-    # Ideally, we call an API endpoint to mark the order as approved and generate the config
-    # For now, we mock success
-    await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ **APPROVED**")
-    await callback.answer("Order approved!")
-    
-    # We would fetch user ID from order here via API, but we don't have it easily without DB.
-    # We'll just assume admin knows.
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/approve")
+            data = resp.json()
+            
+            if resp.status_code == 200:
+                await callback.message.edit_caption(
+                    caption=callback.message.caption + "\n\n✅ **APPROVED** — VPN config provisioned and sent to user."
+                )
+                await callback.answer("✅ Order approved! Config sent to user.", show_alert=True)
+            else:
+                error_msg = data.get("error", data.get("message", "Unknown error"))
+                await callback.message.edit_caption(
+                    caption=callback.message.caption + f"\n\n⚠️ Approve issue: {error_msg}"
+                )
+                await callback.answer(f"Issue: {error_msg}", show_alert=True)
+        except Exception as e:
+            logging.error(f"Approve order error: {e}")
+            await callback.answer("❌ Backend connection error", show_alert=True)
     
 @router.callback_query(F.data.startswith("reject_order_"))
 async def process_reject_order(callback: CallbackQuery, bot):
     order_id = callback.data.split("_")[-1]
-    await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ **REJECTED**")
-    await callback.answer("Order rejected!")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/reject")
+            if resp.status_code == 200:
+                await callback.message.edit_caption(
+                    caption=callback.message.caption + "\n\n❌ **REJECTED** — User has been notified."
+                )
+                await callback.answer("Order rejected.", show_alert=True)
+            else:
+                await callback.answer("Error rejecting order", show_alert=True)
+        except Exception as e:
+            logging.error(f"Reject order error: {e}")
+            await callback.answer("❌ Backend connection error", show_alert=True)
 
 @router.callback_query(F.data.startswith("pay_crypto_"))
 async def process_crypto_payment(callback: CallbackQuery):
@@ -116,12 +148,19 @@ async def process_crypto_payment(callback: CallbackQuery):
     
     async with httpx.AsyncClient() as client:
         try:
+            # Fetch the actual plan to get the real crypto price
+            plan_resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
+            if plan_resp.status_code != 200:
+                raise Exception("Plan not found")
+            plan_data = plan_resp.json()
+            real_price_usdt = plan_data.get("price_usdt", 0.0)
+
             # We create an order first
             order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
                 "telegram_id": callback.from_user.id,
                 "plan_id": int(plan_id),
                 "payment_method": "crypto",
-                "amount": 2.5  # USDT mock price
+                "amount": float(real_price_usdt)
             })
             order_data = order_resp.json()
             order_id = order_data.get("ID")
@@ -133,10 +172,12 @@ async def process_crypto_payment(callback: CallbackQuery):
             
             success_text = (
                 f"💳 **Order #{order_id} created!**\n\n"
+                f"**Amount:** {real_price_usdt} USDT\n"
                 f"Please click the button below to pay via USDT (TRC20/BEP20).\n"
                 f"Your config will be generated automatically once the blockchain confirms the transaction."
             ) if lang == "en" else (
                 f"💳 **سفارش #{order_id} ایجاد شد!**\n\n"
+                f"**مبلغ:** {real_price_usdt} تتر (USDT)\n"
                 f"لطفا برای پرداخت با USDT روی دکمه زیر کلیک کنید.\n"
                 f"کانفیگ شما بلافاصله پس از تایید شبکه کریپتو به صورت خودکار صادر خواهد شد."
             )

@@ -28,11 +28,15 @@ func SetupRoutes(router fiber.Router) {
 	// Plan Routes
 	plans := router.Group("/plans")
 	plans.Get("/", controllers.GetActivePlans)
+	plans.Get("/:id", controllers.GetPlan)
 	plans.Post("/", controllers.CreatePlan)
+	plans.Patch("/:id", controllers.UpdatePlan)
 
 	// Order Routes
 	orders := router.Group("/orders")
 	orders.Post("/", controllers.CreateOrder)
+	orders.Post("/:id/approve", controllers.ApproveOrder)
+	orders.Post("/:id/reject", controllers.RejectOrder)
 	users.Get("/:telegram_id/orders", controllers.GetUserOrders) // Note attached to users group
 	users.Get("/:telegram_id/subscriptions", controllers.GetUserSubscriptions)
 
