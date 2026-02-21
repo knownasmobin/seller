@@ -28,7 +28,7 @@ services:
 
   bot:
     build:
-      context: .
+      context: ./bot
       dockerfile: Dockerfile
     container_name: sell_bot_telegram
     restart: unless-stopped

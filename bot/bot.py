@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("../.env")
 logging.basicConfig(level=logging.INFO)
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:3000/api/v1")

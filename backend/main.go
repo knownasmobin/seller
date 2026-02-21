@@ -11,6 +11,7 @@ import (
 
 	"github.com/username/sell-bot-backend/database"
 	"github.com/username/sell-bot-backend/routes"
+	"github.com/username/sell-bot-backend/worker"
 )
 
 func init() {
@@ -22,6 +23,9 @@ func init() {
 	database.Connect()
 	database.Migrate()
 	database.SeedServers()
+
+	// Start background workers
+	worker.StartUsageMonitor()
 }
 
 // @title VPN Sell Bot API

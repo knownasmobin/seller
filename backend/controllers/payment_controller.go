@@ -288,7 +288,8 @@ func provisionVPNForOrder(order *models.Order) error {
 			client := vpn.NewWgPortalClient(server.APIUrl, wgUser, wgPass)
 			username := fmt.Sprintf("wg_user_%d_%d", user.TelegramID, order.ID)
 			uuidStr = username
-			if peerConf, err := client.CreatePeer(username); err == nil {
+			expiryDate := time.Now().AddDate(0, 0, plan.DurationDays)
+			if peerConf, err := client.CreatePeer(username, expiryDate); err == nil {
 				configLink = peerConf
 				log.Println("Created WG Peer:", username)
 				break // Success
