@@ -253,7 +253,13 @@ async def process_invite_friend(callback: CallbackQuery):
     )
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from urllib.parse import quote
+    
+    share_text = "Join using my invite link!" if lang == "en" else "با لینک دعوت من ثبت‌نام کن!"
+    share_url = f"https://t.me/share/url?url={quote(invite_link)}&text={quote(share_text)}"
+    
     markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Share Link" if lang == "en" else "📢 اشتراک‌گذاری لینک", url=share_url)],
         [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")]
     ])
     
