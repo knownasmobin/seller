@@ -4,7 +4,6 @@
 
 A high-performance modern VPN Seller system powered by a **Go Backend (Fiber)**, a **Python Telegram Bot (Aiogram)**, and a **React Frontend Dashboard**. It seamlessly integrates with Marzban (V2Ray) and WgPortal (WireGuard) panels, handling fully automated Crypto payouts (via Oxapay) and card-to-card approval flows.
 
-*(User: Add Bot Screenshot Here)*
 `![Bot Interface Screenshot](./assets/bot_screenshot.png)`
 
 ## 🌟 Key Bot Features
@@ -20,7 +19,6 @@ The system employs a strict 3-tier architecture:
 2. **/bot (Python/Aiogram)**: The Telegram bot using `aiogram` v3. It is entirely detached from the database, acting purely as a UI client by making HTTP requests to the Golang Backend.
 3. **/frontend (React)**: A modern administrative dashboard built with Vite + React + Tailwind CSS to manage users, plans, and metrics graphically.
 
-*(User: Add Admin Dashboard Screenshot Here)*
 `![Admin Dashboard Screenshot](./assets/dashboard_screenshot.png)`
 
 ## 🚀 Setup & Deployment (Docker)
