@@ -55,12 +55,9 @@ async def cmd_start(message: types.Message, command: CommandObject, state: FSMCo
     if error_data and error_data.get("error") in ["invite_code_required", "invalid_invite_code"]:
         await state.set_state(RegistrationState.waiting_for_invite_code)
         msg_text = (
-            "🔒 <b>Welcome! This bot is invite-only.</b>\n\n"
-            "Please enter your invite code to continue. "
-            "If you were invited by a friend, ask them for their Telegram ID."
-        ) if initial_lang == "en" else (
-            "🔒 <b>خوش آمدید! این ربات فقط با دعوتنامه کار می‌کند.</b>\n\n"
-            "لطفاً کد دعوت خود را وارد کنید. اگر توسط دوستتان دعوت شده‌اید، آیدی عددی (Telegram ID) او را وارد کنید."
+            "🔒 <b>Welcome! This bot is invite-only. / خوش آمدید! این ربات فقط با دعوتنامه کار می‌کند.</b>\n\n"
+            "🇺🇸 Please enter your invite code to continue. If you were invited by a friend, ask them for their invite code.\n\n"
+            "🇮🇷 لطفاً کد دعوت خود را وارد کنید. اگر توسط دوستتان دعوت شده‌اید، کد دعوت او را وارد کنید."
         )
         await message.answer(msg_text, parse_mode=ParseMode.HTML)
         return

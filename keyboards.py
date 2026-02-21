@@ -8,7 +8,8 @@ def get_main_menu(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📦 My Subscriptions", callback_data="my_configs")],
             [InlineKeyboardButton(text="👤 Profile", callback_data="profile"), 
              InlineKeyboardButton(text="🌍 Language", callback_data="change_lang")],
-            [InlineKeyboardButton(text="🎧 Support", callback_data="support_menu")]
+            [InlineKeyboardButton(text="🎁 Invite", callback_data="invite_friend"),
+             InlineKeyboardButton(text="🎧 Support", callback_data="support_menu")]
         ]
     else:
         buttons = [
@@ -16,7 +17,8 @@ def get_main_menu(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📦 سرویس‌های من", callback_data="my_configs")],
             [InlineKeyboardButton(text="👤 پروفایل", callback_data="profile"), 
              InlineKeyboardButton(text="🌍 تغییر زبان", callback_data="change_lang")],
-            [InlineKeyboardButton(text="🎧 پشتیبانی", callback_data="support_menu")]
+            [InlineKeyboardButton(text="🎁 دعوت از دوستان", callback_data="invite_friend"),
+             InlineKeyboardButton(text="🎧 پشتیبانی", callback_data="support_menu")]
         ]
         
     if is_admin:

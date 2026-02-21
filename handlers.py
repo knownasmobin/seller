@@ -216,14 +216,14 @@ async def process_profile(callback: CallbackQuery):
             
             text = (
                 f"👤 <b>Welcome to Your Profile</b>\n\n"
-                f"🆔 <b>User ID:</b> <code>{callback.from_user.id}</code>\n"
+                f"🆔 <b>Invite Code:</b> <code>{callback.from_user.id}</code>\n"
                 f"💰 <b>Wallet Balance:</b> {balance} IRR\n\n"
-                f"💡 <i>Keep your ID safe for support queries.</i>"
+                f"💡 <i>Give your invite code or link to your friends so they can join!</i>"
             ) if lang == "en" else (
                 f"👤 <b>پروفایل کاربری شما</b>\n\n"
-                f"🆔 <b>شناسه کاربری:</b> <code>{callback.from_user.id}</code>\n"
+                f"🆔 <b>کد دعوت شما:</b> <code>{callback.from_user.id}</code>\n"
                 f"💰 <b>موجودی کیف پول:</b> {balance} تومان\n\n"
-                f"💡 <i>شناسه خود را برای پیگیری‌های پشتیبانی نگه‌دارید.</i>"
+                f"💡 <i>کد دعوت یا لینک ثبت‌نام را به دوستانتان بدهید تا بتوانند در ربات ثبت‌نام کنند!</i>"
             )
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -233,6 +233,33 @@ async def process_profile(callback: CallbackQuery):
             await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             await callback.answer("Backend error.", show_alert=True)
+
+@router.callback_query(F.data == "invite_friend")
+async def process_invite_friend(callback: CallbackQuery):
+    lang = await get_user_lang(callback.from_user.id)
+    bot_info = await callback.bot.get_me()
+    invite_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
+    
+    text = (
+        f"🎁 <b>Invite Your Friends!</b>\n\n"
+        f"Send the link below to your friends. They can also manually enter your invite code during registration.\n\n"
+        f"🔗 <b>Your Invite Link:</b>\n{invite_link}\n\n"
+        f"🆔 <b>Your Invite Code:</b>"
+    ) if lang == "en" else (
+        f"🎁 <b>دعوت از دوستان!</b>\n\n"
+        f"لینک زیر را برای دوستان خود ارسال کنید. آنها همچنین می‌توانند کد دعوت شما را به صورت دستی هنگام ثبت‌نام وارد کنند.\n\n"
+        f"🔗 <b>لینک دعوت شما:</b>\n{invite_link}\n\n"
+        f"🆔 <b>کد دعوت شما:</b>"
+    )
+    
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")]
+    ])
+    
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+    await callback.message.answer(f"<code>{callback.from_user.id}</code>", parse_mode="HTML")
+    await callback.answer()
 
 @router.callback_query(F.data == "my_configs")
 async def process_my_configs(callback: CallbackQuery):
