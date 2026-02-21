@@ -12,6 +12,7 @@ type User struct {
 	Language   string         `gorm:"size:10;default:'fa'" json:"language"`
 	Balance    float64        `gorm:"default:0.0" json:"balance"`
 	IsAdmin    bool           `gorm:"default:false" json:"is_admin"`
+	InvitedBy  int64          `json:"invited_by"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at"`
