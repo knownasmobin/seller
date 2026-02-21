@@ -244,12 +244,12 @@ async def process_invite_friend(callback: CallbackQuery):
         f"🎁 <b>Invite Your Friends!</b>\n\n"
         f"Send the link below to your friends. They can also manually enter your invite code during registration.\n\n"
         f"🔗 <b>Your Invite Link:</b>\n{invite_link}\n\n"
-        f"🆔 <b>Your Invite Code:</b>"
+        f"🆔 <b>Your Invite Code:</b> <code>{callback.from_user.id}</code>"
     ) if lang == "en" else (
         f"🎁 <b>دعوت از دوستان!</b>\n\n"
         f"لینک زیر را برای دوستان خود ارسال کنید. آنها همچنین می‌توانند کد دعوت شما را به صورت دستی هنگام ثبت‌نام وارد کنند.\n\n"
         f"🔗 <b>لینک دعوت شما:</b>\n{invite_link}\n\n"
-        f"🆔 <b>کد دعوت شما:</b>"
+        f"🆔 <b>کد دعوت شما:</b> <code>{callback.from_user.id}</code>"
     )
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -258,7 +258,6 @@ async def process_invite_friend(callback: CallbackQuery):
     ])
     
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-    await callback.message.answer(f"<code>{callback.from_user.id}</code>", parse_mode="HTML")
     await callback.answer()
 
 @router.callback_query(F.data == "my_configs")
