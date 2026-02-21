@@ -1,0 +1,79 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Test Go Backend
+        run: |
+          cd backend
+          go mod tidy
+          go test ./...
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Test Python Bot
+        run: |
+          cd bot
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pytest tests/
+
+  build-and-push:
+    name: Build & Push to GHCR
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase Repository Name
+        id: repo-name
+        run: echo "REPO=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Build and push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ghcr.io/${{ env.REPO }}/sell-bot-backend:latest
+
+      - name: Build and push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ghcr.io/${{ env.REPO }}/sell-bot-frontend:latest
+
+      - name: Build and push Telegram Bot Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./bot
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ghcr.io/${{ env.REPO }}/sell-bot-telegram:latest
