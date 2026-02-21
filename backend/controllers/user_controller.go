@@ -36,23 +36,33 @@ func GetOrCreateUser(c *fiber.Ctx) error {
 	result := database.DB.Where("telegram_id = ?", req.TelegramID).First(&user)
 
 	if result.Error != nil {
-		// User doesn't exist, create new if invite code is valid
-		if req.InviteCode == "" {
+		adminIDs := strings.Split(os.Getenv("ADMIN_ID"), ",")
+		isAdminUser := false
+		for _, aid := range adminIDs {
+			if strings.TrimSpace(aid) == strconv.FormatInt(req.TelegramID, 10) {
+				isAdminUser = true
+				break
+			}
+		}
+
+		// User doesn't exist, create new if invite code is valid OR user is an admin
+		if req.InviteCode == "" && !isAdminUser {
 			return c.Status(401).JSON(fiber.Map{"error": "invite_code_required", "message": "This bot is invite-only."})
 		}
 
 		var invitedBy int64 = 0
-		validInvite := false
+		validInvite := isAdminUser
 
-		// 1. Check if invite code matches any Admin ID
-		adminIDs := strings.Split(os.Getenv("ADMIN_ID"), ",")
-		for _, aid := range adminIDs {
-			if strings.TrimSpace(aid) == req.InviteCode {
-				validInvite = true
-				if parsedAdminID, err := strconv.ParseInt(strings.TrimSpace(aid), 10, 64); err == nil {
-					invitedBy = parsedAdminID
+		if !validInvite {
+			// 1. Check if invite code matches any Admin ID
+			for _, aid := range adminIDs {
+				if strings.TrimSpace(aid) == req.InviteCode {
+					validInvite = true
+					if parsedAdminID, err := strconv.ParseInt(strings.TrimSpace(aid), 10, 64); err == nil {
+						invitedBy = parsedAdminID
+					}
+					break
 				}
-				break
 			}
 		}
 
