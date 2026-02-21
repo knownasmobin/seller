@@ -167,15 +167,10 @@ async def process_custom_name_prompt(callback: CallbackQuery, state: FSMContext)
     await callback.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
 
 import re
+from payment_handlers import PaymentState
 
-@router.message(F.text, FSMContext, flags={"state": "PaymentState:waiting_for_config_name"})
+@router.message(PaymentState.waiting_for_config_name, F.text)
 async def process_custom_name_input(message: Message, state: FSMContext):
-    # This handler needs to be registered with the FSM state. We explicitly check state.
-    current_state = await state.get_state()
-    from payment_handlers import PaymentState
-    if current_state != PaymentState.waiting_for_config_name.state:
-        return
-
     lang = await get_user_lang(message.from_user.id)
     data = await state.get_data()
     plan_id = data.get("plan_id")
