@@ -107,7 +107,7 @@ async def add_plan_price(message: types.Message, state: FSMContext):
             "is_active": True
         }
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
             resp = await client.post(f"{API_BASE_URL}/plans", json=plan_payload)
             if resp.status_code == 201:
                 await message.answer(f"✅ Plan added successfully!\n\nType: {data['server_type']}\nDays: {data['duration_days']}\nGB: {data['data_limit_gb']}\nPrice: {price_irr} IRR")
@@ -127,7 +127,7 @@ async def edit_plan_list(callback: types.CallbackQuery):
         await callback.answer("Unauthorized", show_alert=True)
         return
         
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/plans?all=true")
             plans = resp.json()
@@ -199,7 +199,7 @@ async def process_admin_reply(message: types.Message, bot):
 async def edit_plan_menu(callback: types.CallbackQuery, state: FSMContext):
     plan_id = callback.data.split("_")[-1]
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
             if resp.status_code != 200:
@@ -242,7 +242,7 @@ async def edit_plan_toggle_status(callback: types.CallbackQuery):
     current_status = parts[3].lower() == "true"
     new_status = not current_status
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.patch(f"{API_BASE_URL}/plans/{plan_id}", json={"is_active": new_status})
             if resp.status_code == 200:
@@ -301,7 +301,7 @@ async def process_edit_plan_value(message: types.Message, state: FSMContext):
         await message.answer("❌ Invalid number format. Please try again.")
         return
         
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.patch(f"{API_BASE_URL}/plans/{plan_id}", json=payload)
             if resp.status_code == 200:
@@ -323,7 +323,7 @@ async def admin_endpoints_list(callback: types.CallbackQuery):
         await callback.answer("Unauthorized", show_alert=True)
         return
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/endpoints?all=true")
             endpoints = resp.json()
@@ -348,7 +348,7 @@ async def admin_ep_toggle(callback: types.CallbackQuery):
     ep_id = parts[3]
     current = parts[4].lower() == "true"
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.patch(f"{API_BASE_URL}/endpoints/{ep_id}", json={"is_active": not current})
             if resp.status_code == 200:
@@ -382,7 +382,7 @@ async def admin_add_ep_name(message: types.Message, state: FSMContext):
 async def admin_add_ep_address(message: types.Message, state: FSMContext):
     data = await state.get_data()
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.post(f"{API_BASE_URL}/endpoints", json={
                 "name": data.get("ep_name"),

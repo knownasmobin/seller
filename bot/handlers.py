@@ -54,7 +54,7 @@ async def process_protocol_selection(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     proto = callback.data.split("_")[-1]
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/plans?type={proto}")
             logging.info(f"Plans API response for {proto}: {resp.status_code} {resp.text}")
@@ -102,7 +102,7 @@ async def process_plan_selection(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     
     # Check plan protocol to figure out if we should ask for custom name
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
             if resp.status_code == 200:
@@ -205,7 +205,7 @@ async def process_skip_custom_name(callback: CallbackQuery, state: FSMContext):
 async def process_profile(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.post(f"{API_BASE_URL}/users/", json={
                 "telegram_id": callback.from_user.id,
@@ -270,7 +270,7 @@ async def process_invite_friend(callback: CallbackQuery):
 async def process_my_configs(callback: CallbackQuery):
     lang = await get_user_lang(callback.from_user.id)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions")
             subs = resp.json()
@@ -357,7 +357,7 @@ async def process_get_v2ray_link(callback: CallbackQuery):
     sub_id = callback.data.split("_")[-1]
     lang = await get_user_lang(callback.from_user.id)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions")
             subs = resp.json()
@@ -412,7 +412,7 @@ async def process_get_v2ray_configs(callback: CallbackQuery):
     sub_id = callback.data.split("_")[-1]
     lang = await get_user_lang(callback.from_user.id)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions")
             subs = resp.json()
@@ -522,7 +522,7 @@ async def process_set_lang(callback: CallbackQuery):
     lang = callback.data.split("_")[-1]  # "en" or "fa"
     
     # Update language in backend using the dedicated update endpoint
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             await client.patch(f"{API_BASE_URL}/users/{callback.from_user.id}/language", json={
                 "language": lang
@@ -552,7 +552,7 @@ async def process_get_wg_config(callback: CallbackQuery):
     sub_id = callback.data.split("_")[2]
     lang = await get_user_lang(callback.from_user.id)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             ep_resp = await client.get(f"{API_BASE_URL}/endpoints")
             endpoints = ep_resp.json()
@@ -580,7 +580,7 @@ async def process_dl_wg_config(callback: CallbackQuery):
     ep_id = parts[3]
     lang = await get_user_lang(callback.from_user.id)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/users/{callback.from_user.id}/subscriptions/{sub_id}/wg_config?endpoint_id={ep_id}")
             if resp.status_code == 200:
@@ -649,7 +649,7 @@ async def process_support_message(message: Message, state: FSMContext, bot):
 
     # Fetch user's active subscriptions to include in the ticket
     active_plans_text = "<i>No active subscriptions found.</i>"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.get(f"{API_BASE_URL}/users/{message.from_user.id}/subscriptions")
             if resp.status_code == 200:

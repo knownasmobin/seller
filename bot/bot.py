@@ -22,7 +22,7 @@ class RegistrationState(StatesGroup):
     waiting_for_invite_code = State()
 
 async def get_or_create_user(telegram_id: int, language: str, invite_code: str = ""):
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             payload = {
                 "telegram_id": telegram_id,

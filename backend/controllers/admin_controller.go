@@ -60,14 +60,27 @@ func AdminLogin(c *fiber.Ctx) error {
 	})
 }
 
-// AdminAuthMiddleware checks for a valid Bearer token on admin routes
-func AdminAuthMiddleware(c *fiber.Ctx) error {
+// AuthMiddleware checks for a valid Bearer token (Admin) or Bot token on protected routes
+func AuthMiddleware(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
-	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+	if authHeader == "" {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if strings.HasPrefix(authHeader, "Bot ") {
+		botTokenFromHeader := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bot "))
+		botTokenEnv := os.Getenv("BOT_TOKEN")
+		if botTokenEnv != "" && botTokenFromHeader == botTokenEnv {
+			return c.Next()
+		}
+		return c.Status(401).JSON(fiber.Map{"error": "Invalid Bot Token"})
+	}
+
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 
 	tokenMu.RLock()
 	expiry, exists := validTokens[token]

@@ -13,7 +13,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 async def get_card_number():
     """Fetch card number from backend (dashboard-editable), fallback to env var."""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
             resp = await client.get(f"{API_BASE_URL}/admin/settings", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
@@ -72,7 +72,7 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
 
     file_id = message.photo[-1].file_id
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             # Fetch the actual plan to get the real price
             plan_resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
@@ -87,7 +87,7 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
             config_name = data.get("config_name", "")
 
             # Submit order to backend
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
                 order_resp = await client.post(f"{API_BASE_URL}/orders/", json={
                     "telegram_id": message.from_user.id,
                     "plan_id": int(plan_id),
@@ -155,7 +155,7 @@ async def process_screenshot(message: Message, state: FSMContext, bot):
 async def process_approve_order(callback: CallbackQuery, bot):
     order_id = callback.data.split("_")[-1]
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/approve", timeout=65.0)
             data = resp.json()
@@ -194,7 +194,7 @@ async def process_approve_order(callback: CallbackQuery, bot):
 async def process_reject_order(callback: CallbackQuery, bot):
     order_id = callback.data.split("_")[-1]
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/reject")
             if resp.status_code == 200:
@@ -230,7 +230,7 @@ async def process_crypto_payment(callback: CallbackQuery, state: FSMContext):
     else:
         msg = await callback.message.edit_text(text)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             # Fetch the actual plan to get the real crypto price
             plan_resp = await client.get(f"{API_BASE_URL}/plans/{plan_id}")
@@ -318,7 +318,7 @@ async def process_manual_config_input(message: Message, state: FSMContext):
 
     wait_msg = await message.answer("🔄 Sending manual config to backend...")
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             resp = await client.post(
                 f"{API_BASE_URL}/orders/{order_id}/manual_provision",

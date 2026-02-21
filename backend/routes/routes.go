@@ -19,47 +19,50 @@ func SetupRoutes(router fiber.Router) {
 	// Swagger Documentation
 	router.Get("/swagger/*", swagger.HandlerDefault)
 
+	// Webhook Routes (Public)
+	webhooks := router.Group("/webhooks")
+	webhooks.Post("/oxapay", controllers.OxapayCallback)
+
+	// Admin Auth & Public Settings (no middleware)
+	router.Post("/admin/login", controllers.AdminLogin)
+	router.Get("/admin/settings", controllers.GetSettings)
+
+	// Protected Route Group
+	protected := router.Group("/", controllers.AuthMiddleware)
+
 	// User Routes
-	users := router.Group("/users")
+	users := protected.Group("/users")
 	users.Post("/", controllers.GetOrCreateUser)
 	users.Patch("/:telegram_id/balance", controllers.UpdateUserBalance)
 	users.Patch("/:telegram_id/language", controllers.UpdateUserLanguage)
+	users.Get("/:telegram_id/orders", controllers.GetUserOrders)
+	users.Get("/:telegram_id/subscriptions", controllers.GetUserSubscriptions)
+	users.Get("/:telegram_id/subscriptions/:sub_id/wg_config", controllers.GetWGConfig)
 
 	// Plan Routes
-	plans := router.Group("/plans")
+	plans := protected.Group("/plans")
 	plans.Get("/", controllers.GetActivePlans)
 	plans.Get("/:id", controllers.GetPlan)
 	plans.Post("/", controllers.CreatePlan)
 	plans.Patch("/:id", controllers.UpdatePlan)
 
 	// Order Routes
-	orders := router.Group("/orders")
+	orders := protected.Group("/orders")
 	orders.Post("/", controllers.CreateOrder)
 	orders.Post("/:id/approve", controllers.ApproveOrder)
 	orders.Post("/:id/manual_provision", controllers.ManualProvisionOrder)
 	orders.Post("/:id/reject", controllers.RejectOrder)
-	users.Get("/:telegram_id/orders", controllers.GetUserOrders) // Note attached to users group
-	users.Get("/:telegram_id/subscriptions", controllers.GetUserSubscriptions)
-	users.Get("/:telegram_id/subscriptions/:sub_id/wg_config", controllers.GetWGConfig)
 
-	// Webhook Routes
-	webhooks := router.Group("/webhooks")
-	webhooks.Post("/oxapay", controllers.OxapayCallback)
-
-	// WireGuard Endpoint Routes (Admin managed)
-	endpoints := router.Group("/endpoints")
+	// WireGuard Endpoint Routes
+	endpoints := protected.Group("/endpoints")
 	endpoints.Get("/", controllers.GetEndpoints)
 	endpoints.Get("/:id", controllers.GetEndpoint)
 	endpoints.Post("/", controllers.CreateEndpoint)
 	endpoints.Patch("/:id", controllers.UpdateEndpoint)
 	endpoints.Delete("/:id", controllers.DeleteEndpoint)
 
-	// Admin Auth (public - no middleware)
-	router.Post("/admin/login", controllers.AdminLogin)
-	router.Get("/admin/settings", controllers.GetSettings) // public for bot to read card number
-
-	// Admin Routes (protected by auth middleware)
-	admin := router.Group("/admin", controllers.AdminAuthMiddleware)
+	// Admin Routes (using the same generic AuthMiddleware)
+	admin := protected.Group("/admin")
 	admin.Get("/stats", controllers.GetAdminStats)
 	admin.Post("/broadcast", controllers.BroadcastMessage)
 	admin.Get("/servers", controllers.GetServers)
