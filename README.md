@@ -4,14 +4,17 @@
 
 A high-performance modern VPN Seller system powered by a **Go Backend (Fiber)**, a **Python Telegram Bot (Aiogram)**, and a **React Frontend Dashboard**. It seamlessly integrates with Marzban (V2Ray) and WgPortal (WireGuard) panels, handling fully automated Crypto payouts (via Oxapay) and card-to-card approval flows.
 
-`![Bot Interface Screenshot](./assets/bot_screenshot.png)`
+![Bot Interface Screenshot](./assets/bot_screenshot.png)
 
 ## 🌟 Key Bot Features
-- **Fully Automated Provisioning**: Secure integrations directly create V2Ray/WireGuard peers and deliver configurations to users instantly after payment is confirmed.
-- **Crypto & Card Processing**: Native support for the Oxapay crypto gateway, as well as a manual card-to-card transfer flow with receipt screenshot validation.
-- **Invite-Only & Referrals**: Capable of running in an invite-only mode, with comprehensive referral tracking and rewards.
-- **Bilingual Interface**: The bot dynamically supports both English and Persian (Farsi) menus based on user preference.
-- **In-App Admin Panel**: Admins can approve/reject manual payments, create or disable VPN plans, and manage endpoints directly from Telegram without needing the web dashboard.
+- **Multi-Protocol Support**: Seamlessly generate `.conf` and `vless://` links by directly integrating with the Marzban (V2Ray) and WgPortal (WireGuard) panels.
+- **Crypto & Card Processing**: Native integration with the Oxapay crypto gateway for instant automated setups, as well as a robust manual card-to-card transfer flow with receipt screenshot validation.
+- **WireGuard Usage Enforcement**: Background cron job that constantly monitors user interfaces and automatically disables WireGuard peers when their purchased data limit is exceeded.
+- **In-App Admin Panel**: Admins can approve/reject manual payments, create or disable VPN plans, toggle global endpoints, and manually provision configs directly from Telegram.
+- **User Profile Management**: Users can dynamically browse their active VPN subscriptions, view remaining days, check data limits, and retrieve their connection links natively inside the Bot.
+- **Invite-Only & Referrals**: Configurable invite-only registration flow with deep-linking, allowing users to generate referral links and earn rewards.
+- **Geographic Endpoints**: Admins can register and manage multiple geographic destination endpoints (servers) for users to choose from upon plan purchase.
+- **Bilingual Interface**: The bot dynamically supports both English and Persian (Farsi) menus, adjusting the UI instantly based on the user's preference toggle.
 
 ## 🏗 Architecture
 The system employs a strict 3-tier architecture:
@@ -19,7 +22,7 @@ The system employs a strict 3-tier architecture:
 2. **/bot (Python/Aiogram)**: The Telegram bot using `aiogram` v3. It is entirely detached from the database, acting purely as a UI client by making HTTP requests to the Golang Backend.
 3. **/frontend (React)**: A modern administrative dashboard built with Vite + React + Tailwind CSS to manage users, plans, and metrics graphically.
 
-`![Admin Dashboard Screenshot](./assets/dashboard_screenshot.png)`
+![Admin Dashboard Screenshot](./assets/dashboard_screenshot.png)
 
 ## 🚀 Setup & Deployment (Docker)
 
