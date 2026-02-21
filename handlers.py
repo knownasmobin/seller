@@ -297,10 +297,13 @@ async def process_my_configs(callback: CallbackQuery):
                 else:
                     idx_name = f"Config {index}" if lang == "en" else f"سرویس {index}"
 
+                config_name = sub.get("uuid", "")
+                name_line = f"📛 <code>{config_name}</code>\n" if config_name else ""
+
                 if lang == "en":
-                    text += f"💎 <b>{idx_name}</b>\n╰ <i>Status:</i> {status}\n╰ <i>Expires:</i> {expiry}\n{link_text}\n\n"
+                    text += f"{name_line}💎 <b>{idx_name}</b>\n╰ <i>Status:</i> {status}\n╰ <i>Expires:</i> {expiry}\n{link_text}\n\n"
                 else:
-                    text += f"💎 <b>{idx_name}</b>\n╰ <i>وضعیت:</i> {status}\n╰ <i>انقضا:</i> {expiry}\n{link_text}\n\n"
+                    text += f"{name_line}💎 <b>{idx_name}</b>\n╰ <i>وضعیت:</i> {status}\n╰ <i>انقضا:</i> {expiry}\n{link_text}\n\n"
             
             buttons.append([InlineKeyboardButton(text="🔙 Back" if lang == "en" else "🔙 بازگشت", callback_data="main_menu")])
             markup = InlineKeyboardMarkup(inline_keyboard=buttons)
