@@ -5,7 +5,7 @@ from keyboards import get_protocol_menu
 import httpx
 import os
 import logging
-from utils import get_user_lang
+from utils import get_user_lang, set_user_cached_lang
 
 router = Router()
 API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
@@ -527,6 +527,7 @@ async def process_set_lang(callback: CallbackQuery):
             await client.patch(f"{API_BASE_URL}/users/{callback.from_user.id}/language", json={
                 "language": lang
             })
+            set_user_cached_lang(callback.from_user.id, lang)
         except Exception:
             pass
     

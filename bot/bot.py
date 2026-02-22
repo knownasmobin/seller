@@ -180,8 +180,16 @@ async def main():
     dp.include_router(payment_router)
     dp.include_router(admin_router)
     
-    dp.message.middleware(InviteMiddleware())
-    dp.callback_query.middleware(InviteMiddleware())
+    # Apply middleware explicitly to Dispatcher and all Routers to ensure full coverage
+    middleware = InviteMiddleware()
+    dp.message.middleware(middleware)
+    dp.callback_query.middleware(middleware)
+    main_router.message.middleware(middleware)
+    main_router.callback_query.middleware(middleware)
+    payment_router.message.middleware(middleware)
+    payment_router.callback_query.middleware(middleware)
+    admin_router.message.middleware(middleware)
+    admin_router.callback_query.middleware(middleware)
     
     logging.info("Starting Telegram bot polling...")
     await dp.start_polling(bot)
