@@ -1,16 +1,106 @@
-# React + Vite
+# Frontend Admin Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite admin dashboard for the VPN Seller Bot project.
 
-Currently, two official plugins are available:
+This app is used by admins to manage plans, orders, endpoints, broadcasts, and settings through backend APIs.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- Admin authentication with token persistence in `localStorage`
+- Management pages for core operations:
+  - `Dashboard`
+  - `Plans`
+  - `Orders`
+  - `Endpoints`
+  - `Broadcast`
+  - `Settings`
+- API helper with automatic bearer authentication header
+- Automatic logout flow on `401 Unauthorized`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- React 19
+- Vite 7
+- React Router 7
+- Lucide React
+- ESLint 9
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Environment Variables
+
+Create a `.env` file in `frontend/` to override the default API base URL:
+
+```env
+VITE_API_URL=http://localhost:3000/api/v1
+```
+
+If `VITE_API_URL` is not set, the app uses:
+
+```text
+/api/v1
+```
+
+## Local Development
+
+### 1) Install dependencies
+
+```bash
+npm install
+```
+
+### 2) Start development server
+
+```bash
+npm run dev
+```
+
+### 3) Build for production
+
+```bash
+npm run build
+```
+
+### 4) Preview production build
+
+```bash
+npm run preview
+```
+
+### 5) Run linter
+
+```bash
+npm run lint
+```
+
+## Docker
+
+Build and run from the `frontend/` directory:
+
+```bash
+docker build -t seller-frontend .
+docker run -p 8085:80 seller-frontend
+```
+
+## Project Structure
+
+```text
+src/
+  components/
+    Sidebar.jsx
+  pages/
+    Dashboard.jsx
+    Plans.jsx
+    Orders.jsx
+    Endpoints.jsx
+    Broadcast.jsx
+    Settings.jsx
+    Login.jsx
+  api.js
+  App.jsx
+  main.jsx
+```
+
+## Notes
+
+- Authentication state is managed in `src/App.jsx`.
+- API base URL and auth logic are centralized in `src/api.js`.
+- In full deployment, this frontend is typically served through the repository’s root Docker/Nginx setup.
