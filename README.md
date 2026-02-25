@@ -22,6 +22,53 @@ The system employs a strict 3-tier architecture:
 2. **/bot (Python/Aiogram)**: The Telegram bot using `aiogram` v3. It is entirely detached from the database, acting purely as a UI client by making HTTP requests to the Golang Backend.
 3. **/frontend (React)**: A modern administrative dashboard built with Vite + React + Tailwind CSS to manage users, plans, and metrics graphically.
 
+### 🔍 System Diagram
+
+```mermaid
+flowchart LR
+    subgraph User Side
+        TG[Telegram User]
+        Admin[Admin via Browser]
+    end
+
+    subgraph Bot[/bot (Python\/Aiogram)/]
+        Handlers[Payment & admin handlers]
+    end
+
+    subgraph Backend[/backend (Go\/Fiber)/]
+        API[REST API]
+        DB[(SQLite)]
+        Worker[Usage Monitor Worker]
+    end
+
+    subgraph Panels[VPN Panels]
+        Marzban[(Marzban - V2Ray)]
+        WgPortal[(WgPortal - WireGuard)]
+    end
+
+    subgraph Payments[Payment Gateway]
+        Oxapay[(Oxapay)]
+    end
+
+    subgraph Frontend[/frontend (React Dashboard)/]
+        UI[Admin UI]
+    end
+
+    TG <--> Bot
+    Bot -->|HTTP + Bot token| API
+    Admin -->|Browser + Bearer token| UI
+    UI -->|/api/v1/admin/*| API
+
+    API --> DB
+    Worker -->|poll usage| WgPortal
+
+    API -->|provision users| Marzban
+    API -->|provision peers| WgPortal
+
+    API -->|create invoice| Oxapay
+    Oxapay -->|webhook /webhooks/oxapay| API
+```
+
 ![Admin Dashboard Screenshot](./assets/dashboard_screenshot.png)
 
 ## 🚀 Setup & Deployment (Docker)
