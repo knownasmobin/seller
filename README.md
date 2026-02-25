@@ -26,16 +26,16 @@ The system employs a strict 3-tier architecture:
 
 ```mermaid
 flowchart LR
-    subgraph User Side
+    subgraph UserSide[User Side]
         TG[Telegram User]
         Admin[Admin via Browser]
     end
 
-    subgraph Bot[/bot (Python\/Aiogram)/]
+    subgraph Bot[bot (Python/Aiogram)]
         Handlers[Payment & admin handlers]
     end
 
-    subgraph Backend[/backend (Go\/Fiber)/]
+    subgraph Backend[backend (Go/Fiber)]
         API[REST API]
         DB[(SQLite)]
         Worker[Usage Monitor Worker]
@@ -50,7 +50,7 @@ flowchart LR
         Oxapay[(Oxapay)]
     end
 
-    subgraph Frontend[/frontend (React Dashboard)/]
+    subgraph Frontend[frontend (React Dashboard)]
         UI[Admin UI]
     end
 
