@@ -23,6 +23,17 @@ var (
 	tokenMu     sync.RWMutex
 )
 
+// Simple in-memory login attempt tracker to mitigate brute-force attacks
+type loginAttempt struct {
+	FailCount  int
+	LockedTill time.Time
+}
+
+var (
+	loginAttempts = make(map[string]*loginAttempt)
+	loginMu       sync.Mutex
+)
+
 func generateToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)
@@ -40,14 +51,46 @@ func AdminLogin(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
+	ip := c.IP()
+	if ip == "" {
+		ip = "unknown"
+	}
+
+	// Check if this IP is temporarily locked out
+	loginMu.Lock()
+	la, exists := loginAttempts[ip]
+	if !exists {
+		la = &loginAttempt{}
+		loginAttempts[ip] = la
+	}
+	now := time.Now()
+	if now.Before(la.LockedTill) {
+		loginMu.Unlock()
+		return c.Status(429).JSON(fiber.Map{"error": "Too many login attempts, please try again later"})
+	}
+	loginMu.Unlock()
+
 	adminPass := os.Getenv("ADMIN_DASHBOARD_PASSWORD")
 	if adminPass == "" {
 		adminPass = "admin123" // fallback default
 	}
 
 	if req.Password != adminPass {
+		loginMu.Lock()
+		la.FailCount++
+		if la.FailCount >= 5 {
+			la.LockedTill = time.Now().Add(15 * time.Minute)
+		}
+		loginMu.Unlock()
+
 		return c.Status(401).JSON(fiber.Map{"error": "Invalid password"})
 	}
+
+	// Successful login resets the attempt counter for this IP
+	loginMu.Lock()
+	la.FailCount = 0
+	la.LockedTill = time.Time{}
+	loginMu.Unlock()
 
 	token := generateToken()
 	tokenMu.Lock()

@@ -23,9 +23,8 @@ func SetupRoutes(router fiber.Router) {
 	webhooks := router.Group("/webhooks")
 	webhooks.Post("/oxapay", controllers.OxapayCallback)
 
-	// Admin Auth & Public Settings (no middleware)
+	// Admin Auth (no middleware)
 	router.Post("/admin/login", controllers.AdminLogin)
-	router.Get("/admin/settings", controllers.GetSettings)
 
 	// Protected Route Group
 	protected := router.Group("/", controllers.AuthMiddleware)
@@ -67,5 +66,6 @@ func SetupRoutes(router fiber.Router) {
 	admin.Post("/broadcast", controllers.BroadcastMessage)
 	admin.Get("/servers", controllers.GetServers)
 	admin.Patch("/servers/:id", controllers.UpdateServer)
+	admin.Get("/settings", controllers.GetSettings)
 	admin.Patch("/settings", controllers.UpdateSettings)
 }

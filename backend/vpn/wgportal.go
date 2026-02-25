@@ -46,13 +46,23 @@ func (w *WgPortalClient) CreatePeer(username string, expiryDate time.Time) (stri
 
 	var interfaces []map[string]interface{}
 	body1, _ := ioutil.ReadAll(resp1.Body)
-	json.Unmarshal(body1, &interfaces)
+	if err := json.Unmarshal(body1, &interfaces); err != nil {
+		return "", fmt.Errorf("failed to parse interfaces json: %w", err)
+	}
 
 	if len(interfaces) == 0 {
 		return "", errors.New("no wireguard interfaces found in wg-portal")
 	}
 
-	interfaceID := interfaces[0]["Identifier"].(string)
+	rawInterfaceID, ok := interfaces[0]["Identifier"]
+	if !ok {
+		return "", errors.New("wireguard interface missing Identifier field")
+	}
+
+	interfaceID, ok := rawInterfaceID.(string)
+	if !ok || interfaceID == "" {
+		return "", errors.New("wireguard interface Identifier is not a non-empty string")
+	}
 
 	// 2. Provision the new peer
 	provReq := map[string]interface{}{
@@ -98,8 +108,7 @@ func (w *WgPortalClient) CreatePeer(username string, expiryDate time.Time) (stri
 		respUpdate, err := w.Client.Do(reqUpdate)
 		if err == nil {
 			if respUpdate.StatusCode != 200 {
-				bodyUpdateErr, _ := ioutil.ReadAll(respUpdate.Body)
-				return "", fmt.Errorf("failed to update peer expiry, status: %d, response: %s", respUpdate.StatusCode, string(bodyUpdateErr))
+				return "", fmt.Errorf("failed to update peer expiry, status: %d", respUpdate.StatusCode)
 			}
 			respUpdate.Body.Close()
 		} else {
@@ -147,7 +156,9 @@ func (w *WgPortalClient) GetAllPeerMetrics() (map[string]int64, error) {
 
 	var users []map[string]interface{}
 	bodyUsers, _ := ioutil.ReadAll(respUsers.Body)
-	json.Unmarshal(bodyUsers, &users)
+	if err := json.Unmarshal(bodyUsers, &users); err != nil {
+		return nil, fmt.Errorf("failed to parse users json: %w", err)
+	}
 
 	// 2. Fetch metrics for each user
 	for _, u := range users {
@@ -169,7 +180,10 @@ func (w *WgPortalClient) GetAllPeerMetrics() (map[string]int64, error) {
 
 		var userMetrics map[string]interface{}
 		bodyMetrics, _ := ioutil.ReadAll(respMetrics.Body)
-		json.Unmarshal(bodyMetrics, &userMetrics)
+		if err := json.Unmarshal(bodyMetrics, &userMetrics); err != nil {
+			respMetrics.Body.Close()
+			continue
+		}
 		respMetrics.Body.Close()
 
 		peerMetrics, ok := userMetrics["PeerMetrics"].([]interface{})

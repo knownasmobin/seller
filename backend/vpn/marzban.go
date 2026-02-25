@@ -57,12 +57,12 @@ func (m *MarzbanClient) Login() error {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
-
 	if resp.StatusCode != 200 {
-		log.Printf("[Marzban] Login failed. Status: %d, Response: %s", resp.StatusCode, string(body))
-		return fmt.Errorf("marzban login failed (status %d): %s", resp.StatusCode, string(body))
+		log.Printf("[Marzban] Login failed. Status: %d", resp.StatusCode)
+		return fmt.Errorf("marzban login failed (status %d)", resp.StatusCode)
 	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
 
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
@@ -73,7 +73,7 @@ func (m *MarzbanClient) Login() error {
 		return nil
 	}
 
-	return fmt.Errorf("token not found in response: %s", string(body))
+	return fmt.Errorf("token not found in response")
 }
 
 // CreateUser creates a new VPN user in Marzban
@@ -136,31 +136,29 @@ func (m *MarzbanClient) CreateUser(username string, dataLimitGB float64, expireU
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
-
 	if resp.StatusCode != 200 {
-		log.Printf("[Marzban] CreateUser failed. Status: %d, Response: %s", resp.StatusCode, string(body))
-		return "", fmt.Errorf("failed to create user (status %d): %s", resp.StatusCode, string(body))
+		log.Printf("[Marzban] CreateUser failed. Status: %d", resp.StatusCode)
+		return "", fmt.Errorf("failed to create user (status %d)", resp.StatusCode)
 	}
 
-	log.Printf("[Marzban] CreateUser response: %s", string(body))
+	body, _ := ioutil.ReadAll(resp.Body)
 
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
 
 	// Marzban returns subscription_url in the create response (e.g. "/sub/username/")
 	if subURL, ok := result["subscription_url"].(string); ok && subURL != "" {
-		log.Printf("[Marzban] User created. Subscription URL: %s", subURL)
+		log.Printf("[Marzban] User created successfully")
 		return subURL, nil
 	}
 
 	// Fallback: some Marzban versions return links array
 	if links, ok := result["links"].([]interface{}); ok && len(links) > 0 {
 		if link, ok := links[0].(string); ok {
-			log.Printf("[Marzban] User created. Link: %s", link)
+			log.Printf("[Marzban] User created successfully (links array)")
 			return link, nil
 		}
 	}
 
-	return "", fmt.Errorf("no subscription URL found in response: %s", string(body))
+	return "", fmt.Errorf("no subscription URL found in response")
 }

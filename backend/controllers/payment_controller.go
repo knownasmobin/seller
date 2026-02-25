@@ -2,11 +2,17 @@ package controllers
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,10 +25,9 @@ import (
 // OxapayCallback is hit by Oxapay when a payment is confirmed.
 func OxapayCallback(c *fiber.Ctx) error {
 	// Oxapay sends application/x-www-form-urlencoded or application/json.
-	// For raw reading:
 	type OxapayPayload struct {
 		Merchant    string  `json:"merchant"`
-		Status      int     `json:"status"` // 100 is paid
+		Status      int     `json:"status"` // 100 is paid (legacy numeric API)
 		Amount      float64 `json:"amount"`
 		PayAmount   float64 `json:"payAmount"`
 		OrderID     string  `json:"orderId"`
@@ -30,35 +35,109 @@ func OxapayCallback(c *fiber.Ctx) error {
 		Description string  `json:"description"`
 	}
 
-	var payload OxapayPayload
-	if err := c.BodyParser(&payload); err != nil {
-		log.Println("Oxapay callback parse error:", err)
+	merchantKey := os.Getenv("OXAPAY_MERCHANT_KEY")
+	if merchantKey == "" {
+		log.Println("[Oxapay] OXAPAY_MERCHANT_KEY not configured; rejecting callback")
+		return c.Status(500).SendString("Callback not configured")
+	}
+
+	rawBody := c.Body()
+	if len(rawBody) == 0 {
+		log.Println("[Oxapay] Empty callback body")
 		return c.Status(400).SendString("Bad Request")
 	}
 
-	// Verify merchant key (basic security step)
-	if payload.Merchant != os.Getenv("OXAPAY_MERCHANT_KEY") {
-		log.Println("Invalid Oxapay merchant key in callback")
+	// Verify HMAC signature according to Oxapay docs
+	receivedHMAC := c.Get("HMAC")
+	if receivedHMAC == "" {
+		log.Println("[Oxapay] Missing HMAC header on callback")
 		return c.Status(403).SendString("Forbidden")
 	}
 
-	// Wait, oxapay sends HMAC signature. A simple check is to send request to their verification endpoint,
-	// or just check if status == 100. Let's assume trusting the merchant key for now since this is an MVP.
+	mac := hmac.New(sha512.New, []byte(merchantKey))
+	if _, err := mac.Write(rawBody); err != nil {
+		log.Println("[Oxapay] Failed to compute HMAC:", err)
+		return c.Status(500).SendString("Internal Error")
+	}
+	expectedHMAC := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(strings.ToLower(receivedHMAC)), []byte(strings.ToLower(expectedHMAC))) {
+		log.Println("[Oxapay] Invalid HMAC signature on callback")
+		return c.Status(403).SendString("Forbidden")
+	}
+
+	var payload OxapayPayload
+	contentType := c.Get("Content-Type")
+	switch {
+	case strings.Contains(contentType, "application/x-www-form-urlencoded"):
+		values, err := url.ParseQuery(string(rawBody))
+		if err != nil {
+			log.Println("[Oxapay] Failed to parse form callback:", err)
+			return c.Status(400).SendString("Bad Request")
+		}
+		payload.Merchant = values.Get("merchant")
+		payload.Description = values.Get("description")
+		payload.OrderID = values.Get("orderId")
+
+		if statusStr := values.Get("status"); statusStr != "" {
+			if statusInt, err := strconv.Atoi(statusStr); err == nil {
+				payload.Status = statusInt
+			}
+		}
+		if amountStr := values.Get("amount"); amountStr != "" {
+			if amount, err := strconv.ParseFloat(amountStr, 64); err == nil {
+				payload.Amount = amount
+			}
+		}
+		if payAmountStr := values.Get("payAmount"); payAmountStr != "" {
+			if payAmount, err := strconv.ParseFloat(payAmountStr, 64); err == nil {
+				payload.PayAmount = payAmount
+			}
+		}
+		if trackIDStr := values.Get("trackId"); trackIDStr != "" {
+			if trackID, err := strconv.ParseInt(trackIDStr, 10, 64); err == nil {
+				payload.TrackID = trackID
+			}
+		}
+	default:
+		if err := json.Unmarshal(rawBody, &payload); err != nil {
+			log.Println("[Oxapay] Callback JSON parse error:", err)
+			return c.Status(400).SendString("Bad Request")
+		}
+	}
+
+	// Basic merchant key match as an additional guard
+	if payload.Merchant != "" && payload.Merchant != merchantKey {
+		log.Println("[Oxapay] Invalid merchant field in callback")
+		return c.Status(403).SendString("Forbidden")
+	}
 
 	if payload.Status != 100 {
-		log.Printf("Order %s received non-success status: %d", payload.OrderID, payload.Status)
-		// Process it anyway to record failures if desired, or skip
-		return c.SendString("OK")
+		log.Printf("[Oxapay] Order %s received non-success status: %d", payload.OrderID, payload.Status)
+		// Acknowledge non-paid statuses so Oxapay doesn't keep retrying
+		return c.SendString("ok")
 	}
 
 	var order models.Order
 	if err := database.DB.Where("id = ?", payload.OrderID).First(&order).Error; err != nil {
-		log.Printf("Order %s not found in DB", payload.OrderID)
+		log.Printf("[Oxapay] Order %s not found in DB", payload.OrderID)
 		return c.Status(404).SendString("Order not found")
 	}
 
+	// Ensure the callback corresponds to the expected payment method and amount.
+	if order.PaymentMethod != "crypto" {
+		log.Printf("[Oxapay] Order %s has non-crypto payment method (%s), ignoring Oxapay callback", payload.OrderID, order.PaymentMethod)
+		return c.Status(400).SendString("Invalid payment method")
+	}
+
+	if order.Amount > 0 && payload.Amount > 0 {
+		if math.Abs(order.Amount-payload.Amount) > 0.0001 {
+			log.Printf("[Oxapay] Amount mismatch for order %s: expected %.4f, got %.4f", payload.OrderID, order.Amount, payload.Amount)
+			return c.Status(400).SendString("Amount mismatch")
+		}
+	}
+
 	if order.PaymentStatus == "approved" {
-		return c.SendString("Already approved")
+		return c.SendString("ok")
 	}
 
 	// Approve Order
@@ -66,7 +145,7 @@ func OxapayCallback(c *fiber.Ctx) error {
 	order.CryptoTxID = fmt.Sprintf("%d", payload.TrackID)
 	database.DB.Save(&order)
 
-	// Here we should provision the VPN, then optionally notify the bot.
+	// Provision the VPN, then optionally notify the bot.
 	if err := provisionVPNForOrder(&order); err != nil {
 		log.Printf("[ERROR] OxaPay auto-provisioning failed for order %s: %v", payload.OrderID, err)
 		// We still return OK to OxaPay so they stop retrying the webhook,
@@ -74,7 +153,7 @@ func OxapayCallback(c *fiber.Ctx) error {
 		// (Ideally we flag it for manual review).
 	}
 
-	return c.SendString("OK")
+	return c.SendString("ok")
 }
 
 // ApproveOrder is called by the bot when admin approves a card payment.

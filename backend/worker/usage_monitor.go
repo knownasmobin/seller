@@ -16,6 +16,12 @@ func StartUsageMonitor() {
 	// Run every hour
 	ticker := time.NewTicker(time.Duration(1) * time.Hour)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[UsageMonitor] Recovered from panic in worker goroutine: %v", r)
+			}
+		}()
+
 		// Run immediately on boot
 		log.Println("[UsageMonitor] Starting initial WgPortal usage check...")
 		checkWgUsage()
@@ -28,6 +34,12 @@ func StartUsageMonitor() {
 }
 
 func checkWgUsage() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[UsageMonitor] Recovered from panic in checkWgUsage: %v", r)
+		}
+	}()
+
 	// Only fetch active wireguard subscriptions
 	var subscriptions []models.Subscription
 	if err := database.DB.Preload("Plan").Where("status = ?", "active").Find(&subscriptions).Error; err != nil {
