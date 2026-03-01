@@ -398,20 +398,27 @@ func UpdateServer(c *fiber.Ctx) error {
 	return c.JSON(server)
 }
 
-// GetSettings returns current bot settings (card number, etc.)
+const requiredChannelKey = "required_channel"
+
+// GetSettings returns current bot settings (card number, required channel, etc.)
 func GetSettings(c *fiber.Ctx) error {
+	requiredChannel := ""
+	if value, ok := getSettingValue(requiredChannelKey); ok {
+		requiredChannel = value
+	}
+
 	return c.JSON(fiber.Map{
 		"admin_card_number": os.Getenv("ADMIN_CARD_NUMBER"),
 		"bot_name":          os.Getenv("BOT_NAME"),
+		"required_channel":  requiredChannel,
 	})
 }
 
-// UpdateSettings updates bot settings by writing to a settings file
-// Note: env vars can't be changed at runtime in production.
-// For a real solution, store settings in DB. For now, return guidance.
+// UpdateSettings updates bot settings
 func UpdateSettings(c *fiber.Ctx) error {
 	type SettingsReq struct {
-		AdminCardNumber string `json:"admin_card_number"`
+		AdminCardNumber *string `json:"admin_card_number"`
+		RequiredChannel *string `json:"required_channel"`
 	}
 
 	var req SettingsReq
@@ -419,12 +426,43 @@ func UpdateSettings(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	if req.AdminCardNumber != "" {
-		os.Setenv("ADMIN_CARD_NUMBER", req.AdminCardNumber)
+	if req.AdminCardNumber != nil {
+		os.Setenv("ADMIN_CARD_NUMBER", *req.AdminCardNumber)
+	}
+
+	if req.RequiredChannel != nil {
+		channelValue := strings.TrimSpace(*req.RequiredChannel)
+		if channelValue == "" {
+			// Delete the setting to disable channel requirement
+			database.DB.Where("key = ?", requiredChannelKey).Delete(&models.AppSetting{})
+		} else {
+			if err := setSettingValue(requiredChannelKey, channelValue); err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to update required channel setting"})
+			}
+		}
+	}
+
+	requiredChannel := ""
+	if value, ok := getSettingValue(requiredChannelKey); ok {
+		requiredChannel = value
 	}
 
 	return c.JSON(fiber.Map{
-		"message":           "Settings updated for this session",
+		"message":           "Settings updated",
 		"admin_card_number": os.Getenv("ADMIN_CARD_NUMBER"),
+		"required_channel":  requiredChannel,
+	})
+}
+
+// GetRequiredChannel returns the required channel username/ID for channel verification
+// This endpoint is used by the bot to check if users need to join a channel
+func GetRequiredChannel(c *fiber.Ctx) error {
+	requiredChannel := ""
+	if value, ok := getSettingValue(requiredChannelKey); ok {
+		requiredChannel = value
+	}
+
+	return c.JSON(fiber.Map{
+		"required_channel": requiredChannel,
 	})
 }

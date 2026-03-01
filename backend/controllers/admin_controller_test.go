@@ -16,16 +16,33 @@ func setupAdminTestDB(t *testing.T) {
 	t.Helper()
 	os.Setenv("DB_PATH", ":memory:")
 	database.Connect()
-	err := database.DB.AutoMigrate(&models.User{})
+	err := database.DB.AutoMigrate(&models.User{}, &models.AppSetting{})
 	if err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	database.DB.Unscoped().Where("1 = 1").Delete(&models.User{})
+	database.DB.Unscoped().Where("1 = 1").Delete(&models.AppSetting{})
 }
 
 func setupAdminApp() *fiber.App {
 	app := fiber.New()
 	app.Post("/admin/users/:telegram_id/message", SendMessageToUser)
+	return app
+}
+
+func setupSettingsApp() *fiber.App {
+	app := fiber.New()
+	app.Use(func(c *fiber.Ctx) error {
+		// Mock auth middleware - accept Bot token
+		authHeader := c.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bot ") {
+			return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+		}
+		return c.Next()
+	})
+	app.Get("/settings/required_channel", GetRequiredChannel)
+	app.Get("/admin/settings", GetSettings)
+	app.Patch("/admin/settings", UpdateSettings)
 	return app
 }
 
@@ -130,6 +147,207 @@ func TestSendMessageToUser_ValidatesUserExists(t *testing.T) {
 	// The important thing is it doesn't fail at user lookup (404)
 	if resp.StatusCode == 404 {
 		t.Fatalf("expected user to be found, got 404")
+	}
+}
+
+func TestGetRequiredChannel_ReturnsEmptyWhenNotSet(t *testing.T) {
+	setupAdminTestDB(t)
+	app := setupSettingsApp()
+
+	req := httptest.NewRequest("GET", "/settings/required_channel", nil)
+	req.Header.Set("Authorization", "Bot test-token")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if body["required_channel"] != "" {
+		t.Fatalf("expected empty required_channel, got %v", body["required_channel"])
+	}
+}
+
+func TestGetRequiredChannel_ReturnsSetValue(t *testing.T) {
+	setupAdminTestDB(t)
+	app := setupSettingsApp()
+
+	// Set a channel
+	setting := models.AppSetting{Key: "required_channel", Value: "@mychannel"}
+	database.DB.Create(&setting)
+
+	req := httptest.NewRequest("GET", "/settings/required_channel", nil)
+	req.Header.Set("Authorization", "Bot test-token")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if body["required_channel"] != "@mychannel" {
+		t.Fatalf("expected '@mychannel', got %v", body["required_channel"])
+	}
+}
+
+func TestGetSettings_IncludesRequiredChannel(t *testing.T) {
+	setupAdminTestDB(t)
+	os.Setenv("ADMIN_CARD_NUMBER", "1234-5678")
+	os.Setenv("BOT_NAME", "TestBot")
+	defer os.Unsetenv("ADMIN_CARD_NUMBER")
+	defer os.Unsetenv("BOT_NAME")
+
+	app := setupSettingsApp()
+
+	// Set a channel
+	setting := models.AppSetting{Key: "required_channel", Value: "@testchannel"}
+	database.DB.Create(&setting)
+
+	req := httptest.NewRequest("GET", "/admin/settings", nil)
+	req.Header.Set("Authorization", "Bot test-token")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if body["required_channel"] != "@testchannel" {
+		t.Fatalf("expected '@testchannel', got %v", body["required_channel"])
+	}
+	if body["admin_card_number"] != "1234-5678" {
+		t.Fatalf("expected '1234-5678', got %v", body["admin_card_number"])
+	}
+}
+
+func TestUpdateSettings_SetsRequiredChannel(t *testing.T) {
+	setupAdminTestDB(t)
+	app := setupSettingsApp()
+
+	payload := `{"required_channel":"@newchannel"}`
+	req := httptest.NewRequest("PATCH", "/admin/settings", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bot test-token")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if body["required_channel"] != "@newchannel" {
+		t.Fatalf("expected '@newchannel', got %v", body["required_channel"])
+	}
+
+	// Verify it's persisted in DB
+	var setting models.AppSetting
+	if err := database.DB.Where("key = ?", "required_channel").First(&setting).Error; err != nil {
+		t.Fatalf("expected setting to be persisted, got error: %v", err)
+	}
+	if setting.Value != "@newchannel" {
+		t.Fatalf("expected persisted value '@newchannel', got %q", setting.Value)
+	}
+}
+
+func TestUpdateSettings_UpdatesExistingChannel(t *testing.T) {
+	setupAdminTestDB(t)
+	app := setupSettingsApp()
+
+	// Create existing setting
+	setting := models.AppSetting{Key: "required_channel", Value: "@oldchannel"}
+	database.DB.Create(&setting)
+
+	payload := `{"required_channel":"@updatedchannel"}`
+	req := httptest.NewRequest("PATCH", "/admin/settings", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bot test-token")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	// Verify it's updated in DB
+	var updatedSetting models.AppSetting
+	if err := database.DB.Where("key = ?", "required_channel").First(&updatedSetting).Error; err != nil {
+		t.Fatalf("expected setting to exist, got error: %v", err)
+	}
+	if updatedSetting.Value != "@updatedchannel" {
+		t.Fatalf("expected updated value '@updatedchannel', got %q", updatedSetting.Value)
+	}
+}
+
+func TestUpdateSettings_DeletesChannelWhenEmpty(t *testing.T) {
+	setupAdminTestDB(t)
+	app := setupSettingsApp()
+
+	// Create existing setting
+	setting := models.AppSetting{Key: "required_channel", Value: "@oldchannel"}
+	database.DB.Create(&setting)
+
+	payload := `{"required_channel":""}`
+	req := httptest.NewRequest("PATCH", "/admin/settings", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bot test-token")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if body["required_channel"] != "" {
+		t.Fatalf("expected empty required_channel, got %v", body["required_channel"])
+	}
+
+	// Verify it's deleted from DB
+	var deletedSetting models.AppSetting
+	if err := database.DB.Where("key = ?", "required_channel").First(&deletedSetting).Error; err == nil {
+		t.Fatalf("expected setting to be deleted, but it still exists")
 	}
 }
 

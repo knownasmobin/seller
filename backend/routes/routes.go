@@ -45,6 +45,9 @@ func SetupRoutes(router fiber.Router) {
 	plans.Post("/", controllers.CreatePlan)
 	plans.Patch("/:id", controllers.UpdatePlan)
 
+	// Settings Routes (accessible by bot)
+	protected.Get("/settings/required_channel", controllers.GetRequiredChannel)
+
 	// Order Routes
 	orders := protected.Group("/orders")
 	orders.Post("/", controllers.CreateOrder)

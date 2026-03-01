@@ -39,6 +39,127 @@ async def get_or_create_user(telegram_id: int, language: str, invite_code: str =
             return None, {"error": "connection_failed"}
 
 auth_cache = set()
+channel_verified_cache = set()
+
+async def get_required_channel():
+    """Fetch the required channel from backend"""
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/settings/required_channel")
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("required_channel", "").strip()
+        except Exception as e:
+            logging.error(f"Failed to fetch required channel: {e}")
+        return ""
+
+async def check_channel_membership(bot: Bot, user_id: int, channel: str) -> bool:
+    """Check if user is a member of the channel using Telegram API"""
+    if not channel:
+        return True  # No channel required
+    
+    try:
+        # Channel can be username (e.g., @channel) or ID (e.g., -1001234567890)
+        chat_id = channel
+        if channel.startswith("@"):
+            chat_id = channel
+        else:
+            # Try to parse as integer ID
+            try:
+                chat_id = int(channel)
+            except ValueError:
+                chat_id = channel
+        
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+        # Status can be: member, administrator, creator, left, kicked, restricted
+        return member.status in ["member", "administrator", "creator"]
+    except Exception as e:
+        logging.error(f"Failed to check channel membership for {user_id} in {channel}: {e}")
+        # If bot is not admin of channel or channel doesn't exist, allow access
+        # Admin should ensure bot is added to channel as admin
+        return True
+
+class ChannelVerificationMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data: dict):
+        if not isinstance(event, (types.Message, types.CallbackQuery)):
+            return await handler(event, data)
+        
+        user = event.from_user
+        if not user:
+            return await handler(event, data)
+        
+        # Skip for admins
+        admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+        if str(user.id) in admin_ids:
+            return await handler(event, data)
+        
+        # Skip if already verified
+        if user.id in channel_verified_cache:
+            return await handler(event, data)
+        
+        # Get bot instance from data
+        bot: Bot = data.get("bot")
+        if not bot:
+            return await handler(event, data)
+        
+        # Get required channel
+        required_channel = await get_required_channel()
+        if not required_channel:
+            # No channel required, allow access
+            return await handler(event, data)
+        
+        # Check membership
+        is_member = await check_channel_membership(bot, user.id, required_channel)
+        
+        if not is_member:
+            # User is not a member, show join message
+            lang = user.language_code or "en"
+            initial_lang = "fa" if "fa" in lang else "en"
+            
+            # Format channel name for display
+            channel_display = required_channel if required_channel.startswith("@") else f"@{required_channel}"
+            
+            msg_text = (
+                f"🔒 <b>Channel Membership Required</b>\n\n"
+                f"🇺🇸 Please join our channel to continue using this bot:\n"
+                f"📢 {channel_display}\n\n"
+                f"After joining, press the button below to verify."
+            ) if initial_lang == "en" else (
+                f"🔒 <b>عضویت در کانال الزامی است</b>\n\n"
+                f"🇮🇷 لطفاً برای ادامه استفاده از ربات، در کانال ما عضو شوید:\n"
+                f"📢 {channel_display}\n\n"
+                f"پس از عضویت، دکمه زیر را فشار دهید."
+            )
+            
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            verify_button = InlineKeyboardButton(
+                text="✅ Verify / تأیید" if initial_lang == "en" else "✅ تأیید",
+                callback_data="verify_channel"
+            )
+            
+            # Create join button - only if channel is a username (not numeric ID)
+            buttons = []
+            if required_channel.startswith("@"):
+                # Username format: @channel -> https://t.me/channel
+                channel_username = required_channel.lstrip("@")
+                join_button = InlineKeyboardButton(
+                    text=f"📢 Join Channel / عضویت در کانال" if initial_lang == "en" else f"📢 عضویت در کانال",
+                    url=f"https://t.me/{channel_username}"
+                )
+                buttons.append([join_button])
+            buttons.append([verify_button])
+            markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+            
+            if isinstance(event, types.Message):
+                await event.answer(msg_text, parse_mode=ParseMode.HTML, reply_markup=markup)
+            elif isinstance(event, types.CallbackQuery):
+                await event.message.answer(msg_text, parse_mode=ParseMode.HTML, reply_markup=markup)
+                await event.answer()
+            return
+        
+        # User is a member, add to cache
+        channel_verified_cache.add(user.id)
+        return await handler(event, data)
 
 class InviteMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data: dict):
@@ -181,15 +302,28 @@ async def main():
     dp.include_router(admin_router)
     
     # Apply middleware explicitly to Dispatcher and all Routers to ensure full coverage
-    middleware = InviteMiddleware()
-    dp.message.middleware(middleware)
-    dp.callback_query.middleware(middleware)
-    main_router.message.middleware(middleware)
-    main_router.callback_query.middleware(middleware)
-    payment_router.message.middleware(middleware)
-    payment_router.callback_query.middleware(middleware)
-    admin_router.message.middleware(middleware)
-    admin_router.callback_query.middleware(middleware)
+    invite_middleware = InviteMiddleware()
+    channel_middleware = ChannelVerificationMiddleware()
+    
+    # Apply invite middleware first, then channel verification
+    dp.message.middleware(invite_middleware)
+    dp.callback_query.middleware(invite_middleware)
+    main_router.message.middleware(invite_middleware)
+    main_router.callback_query.middleware(invite_middleware)
+    payment_router.message.middleware(invite_middleware)
+    payment_router.callback_query.middleware(invite_middleware)
+    admin_router.message.middleware(invite_middleware)
+    admin_router.callback_query.middleware(invite_middleware)
+    
+    # Apply channel verification middleware after invite check
+    dp.message.middleware(channel_middleware)
+    dp.callback_query.middleware(channel_middleware)
+    main_router.message.middleware(channel_middleware)
+    main_router.callback_query.middleware(channel_middleware)
+    payment_router.message.middleware(channel_middleware)
+    payment_router.callback_query.middleware(channel_middleware)
+    admin_router.message.middleware(channel_middleware)
+    admin_router.callback_query.middleware(channel_middleware)
     
     logging.info("Starting Telegram bot polling...")
     await dp.start_polling(bot)

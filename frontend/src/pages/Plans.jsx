@@ -22,7 +22,8 @@ export default function Plans() {
 
     const fetchPlans = async () => {
         try {
-            const res = await apiFetch('/plans')
+            // Fetch all plans (including inactive) so admins can see and manage disabled plans
+            const res = await apiFetch('/plans?all=true')
             const data = await res.json()
             setPlans(data || [])
         } catch (err) {
@@ -173,7 +174,7 @@ export default function Plans() {
                             <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No plans created yet.</td></tr>
                         ) : (
                             plans.map(plan => (
-                                <tr key={plan.ID}>
+                                <tr key={plan.ID} style={{ opacity: plan.is_active ? 1 : 0.7 }}>
                                     <td>#{plan.ID}</td>
                                     <td>
                                         <span className={`badge ${plan.server_type === 'v2ray' ? 'badge-primary' : 'badge-warning'}`}>
@@ -223,12 +224,17 @@ export default function Plans() {
 
                                     {/* Status */}
                                     <td>
-                                        <button onClick={() => toggleActive(plan)} className="btn" style={{
-                                            background: 'transparent', border: 'none', padding: '4px 8px', cursor: 'pointer',
-                                            color: plan.is_active ? 'var(--success)' : 'var(--danger)'
-                                        }}>
-                                            {plan.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button onClick={() => toggleActive(plan)} className="btn" style={{
+                                                background: 'transparent', border: 'none', padding: '4px 8px', cursor: 'pointer',
+                                                color: plan.is_active ? 'var(--success)' : 'var(--danger)'
+                                            }}>
+                                                {plan.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                                            </button>
+                                            {!plan.is_active && (
+                                                <span className="badge badge-error" style={{ fontSize: '0.75rem' }}>Inactive</span>
+                                            )}
+                                        </div>
                                     </td>
 
                                     {/* Actions */}

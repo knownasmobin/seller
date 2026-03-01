@@ -10,6 +10,45 @@ from utils import get_user_lang, set_user_cached_lang
 router = Router()
 API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 
+@router.callback_query(F.data == "verify_channel")
+async def verify_channel_callback(callback: CallbackQuery):
+    """Handle channel verification button press"""
+    from bot import check_channel_membership, get_required_channel, channel_verified_cache
+    
+    user = callback.from_user
+    bot = callback.bot
+    
+    lang = await get_user_lang(user.id)
+    
+    required_channel = await get_required_channel()
+    if not required_channel:
+        await callback.answer("No channel verification required.", show_alert=True)
+        return
+    
+    is_member = await check_channel_membership(bot, user.id, required_channel)
+    
+    if is_member:
+        channel_verified_cache.add(user.id)
+        success_msg = "✅ Verified! You can now use the bot." if lang == "en" else "✅ تأیید شد! اکنون می‌توانید از ربات استفاده کنید."
+        await callback.answer(success_msg, show_alert=True)
+        # Delete the verification message
+        try:
+            await callback.message.delete()
+        except:
+            pass
+    else:
+        channel_display = required_channel if required_channel.startswith("@") else f"@{required_channel}"
+        error_msg = (
+            f"❌ You haven't joined the channel yet.\n\n"
+            f"Please join: {channel_display}\n"
+            f"Then press verify again."
+        ) if lang == "en" else (
+            f"❌ شما هنوز در کانال عضو نشده‌اید.\n\n"
+            f"لطفاً در کانال عضو شوید: {channel_display}\n"
+            f"سپس دوباره تأیید را فشار دهید."
+        )
+        await callback.answer(error_msg, show_alert=True)
+
 @router.callback_query(F.data == "buy_menu")
 async def process_buy_menu(callback: CallbackQuery, state: FSMContext):
     await state.clear()

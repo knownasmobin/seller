@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, Save, Server, CreditCard, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
+import { Settings as SettingsIcon, Save, Server, CreditCard, Eye, EyeOff, CheckCircle, AlertCircle, Users } from 'lucide-react'
 import { apiFetch } from '../api'
 
 export default function Settings() {
@@ -10,6 +10,7 @@ export default function Settings() {
     const [editData, setEditData] = useState({})
     const [showPasswords, setShowPasswords] = useState({})
     const [cardNumber, setCardNumber] = useState('')
+    const [requiredChannel, setRequiredChannel] = useState('')
     const [toast, setToast] = useState(null)
 
     useEffect(() => {
@@ -30,6 +31,7 @@ export default function Settings() {
                 const data = await settingsRes.json()
                 setSettings(data)
                 setCardNumber(data.admin_card_number || '')
+                setRequiredChannel(data.required_channel || '')
             }
         } catch (err) {
             console.error("Failed to fetch settings", err)
@@ -88,6 +90,25 @@ export default function Settings() {
                 showToast(true, 'Card number updated')
             } else {
                 showToast(false, 'Failed to update card number')
+            }
+        } catch (err) {
+            showToast(false, 'Connection error')
+        }
+    }
+
+    const saveRequiredChannel = async () => {
+        try {
+            const channelValue = requiredChannel.trim() || null
+            const res = await apiFetch('/admin/settings', {
+                method: 'PATCH',
+                body: JSON.stringify({ required_channel: channelValue })
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setRequiredChannel(data.required_channel || '')
+                showToast(true, channelValue ? 'Required channel updated' : 'Channel requirement disabled')
+            } else {
+                showToast(false, 'Failed to update required channel')
             }
         } catch (err) {
             showToast(false, 'Connection error')
@@ -163,6 +184,38 @@ export default function Settings() {
                         Save
                     </button>
                 </div>
+            </div>
+
+            {/* Required Channel */}
+            <div className="glass glass-card mb-8" style={{ animation: 'slideUpFade 0.6s 0.15s both' }}>
+                <div className="flex items-center gap-4" style={{ marginBottom: '20px' }}>
+                    <span style={{ padding: '10px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '10px', color: 'var(--primary)' }}>
+                        <Users size={22} />
+                    </span>
+                    <div>
+                        <h3 style={{ margin: 0 }}>Required Channel</h3>
+                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Force users to join a channel before using the bot. Enter channel username (e.g., @mychannel) or leave empty to disable.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4 items-center">
+                    <input
+                        type="text"
+                        className="input-field"
+                        value={requiredChannel}
+                        onChange={(e) => setRequiredChannel(e.target.value)}
+                        placeholder="@mychannel or channel ID"
+                        style={{ flex: 1, marginBottom: 0 }}
+                    />
+                    <button className="btn btn-primary" onClick={saveRequiredChannel} style={{ height: '50px' }}>
+                        <Save size={18} />
+                        Save
+                    </button>
+                </div>
+                {requiredChannel && (
+                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        <strong>Note:</strong> Make sure your bot is added as an administrator to the channel to verify membership.
+                    </div>
+                )}
             </div>
 
             {/* Servers */}
