@@ -64,6 +64,7 @@ func SetupRoutes(router fiber.Router) {
 	admin := protected.Group("/admin")
 	admin.Get("/stats", controllers.GetAdminStats)
 	admin.Post("/broadcast", controllers.BroadcastMessage)
+	admin.Post("/users/:telegram_id/message", controllers.SendMessageToUser)
 	admin.Get("/servers", controllers.GetServers)
 	admin.Patch("/servers/:id", controllers.UpdateServer)
 	admin.Get("/settings", controllers.GetSettings)

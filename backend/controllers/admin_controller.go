@@ -283,6 +283,64 @@ func sendTelegramMessage(botToken string, chatID int64, message string) error {
 	return nil
 }
 
+// SendMessageToUser sends a Telegram message to a specific user by Telegram ID
+// @Summary Send message to a specific user
+// @Description Sends a message to a user by their Telegram ID via Telegram Bot API
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Param telegram_id path int true "Telegram User ID"
+// @Param body body object true "Message request" SchemaExample({"message": "Hello!"})
+// @Success 200 {object} map[string]interface{}
+// @Router /admin/users/{telegram_id}/message [post]
+func SendMessageToUser(c *fiber.Ctx) error {
+	telegramIDStr := c.Params("telegram_id")
+	var telegramID int64
+	if _, err := fmt.Sscanf(telegramIDStr, "%d", &telegramID); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid Telegram ID"})
+	}
+
+	type MessageRequest struct {
+		Message string `json:"message"`
+	}
+
+	var req MessageRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if strings.TrimSpace(req.Message) == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Message cannot be empty"})
+	}
+
+	botToken := os.Getenv("BOT_TOKEN")
+	if botToken == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "BOT_TOKEN not configured"})
+	}
+
+	// Verify user exists in database
+	var user models.User
+	if err := database.DB.Where("telegram_id = ?", telegramID).First(&user).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	// Send message
+	err := sendTelegramMessage(botToken, telegramID, req.Message)
+	if err != nil {
+		log.Printf("[SendMessageToUser] Failed to send to %d: %v", telegramID, err)
+		return c.Status(500).JSON(fiber.Map{
+			"error":   "Failed to send message",
+			"details": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":     true,
+		"telegram_id": telegramID,
+		"message":     "Message sent successfully",
+	})
+}
+
 // GetServers returns all server configurations
 func GetServers(c *fiber.Ctx) error {
 	var servers []models.Server
