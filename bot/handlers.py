@@ -13,7 +13,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 @router.callback_query(F.data == "verify_channel")
 async def verify_channel_callback(callback: CallbackQuery):
     """Handle channel verification button press"""
-    from bot import check_channel_membership, get_required_channel, channel_verified_cache, parse_required_channel
+    from bot import check_channel_membership, get_required_channel, get_required_channel_link, channel_verified_cache, parse_required_channel
     
     user = callback.from_user
     bot = callback.bot
@@ -21,25 +21,49 @@ async def verify_channel_callback(callback: CallbackQuery):
     lang = await get_user_lang(user.id)
     
     required_channel = await get_required_channel()
-    if not required_channel:
+    required_channel_link = await get_required_channel_link()
+    if not required_channel and not required_channel_link:
         await callback.answer("No channel verification required.", show_alert=True)
         return
-    
+
+    # Determine whether we can really check membership (username/ID) or only have an invite link.
+    display_source = required_channel or required_channel_link
+    chat_id, channel_display, _ = parse_required_channel(display_source)
+    channel_display = channel_display or display_source
+
+    if not chat_id:
+        # Invite-style link or unsupported URL: we cannot check with Bot API,
+        # so treat pressing "Verify" as accepting the requirement.
+        channel_verified_cache.add(user.id)
+        success_msg = (
+            "✅ Verified! You can now use the bot."
+            if lang == "en"
+            else "✅ تأیید شد! اکنون می‌توانید از ربات استفاده کنید."
+        )
+        await callback.answer(success_msg, show_alert=True)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        return
+
+    # Normal strict check for @username / channel ID
     is_member = await check_channel_membership(bot, user.id, required_channel)
-    
+
     if is_member:
         channel_verified_cache.add(user.id)
-        success_msg = "✅ Verified! You can now use the bot." if lang == "en" else "✅ تأیید شد! اکنون می‌توانید از ربات استفاده کنید."
+        success_msg = (
+            "✅ Verified! You can now use the bot."
+            if lang == "en"
+            else "✅ تأیید شد! اکنون می‌توانید از ربات استفاده کنید."
+        )
         await callback.answer(success_msg, show_alert=True)
         # Delete the verification message
         try:
             await callback.message.delete()
-        except:
+        except Exception:
             pass
     else:
-        # Use the same parsing logic as middleware for consistent UX
-        _, channel_display, _ = parse_required_channel(required_channel)
-        channel_display = channel_display or required_channel
         error_msg = (
             f"❌ You haven't joined the channel yet.\n\n"
             f"Please join: {channel_display}\n"

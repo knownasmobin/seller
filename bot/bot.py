@@ -66,21 +66,25 @@ def parse_required_channel(required_channel: str):
             parsed = urlparse(raw)
             if parsed.netloc in ("t.me", "telegram.me"):
                 slug = parsed.path.lstrip("/")
-                # For links like https://t.me/+invitehash or /joinchat/..., we cannot
-                # derive a chat_id usable for membership checks. In that case we only
-                # use the URL for display/join, and let membership check fallback.
-                if slug and not slug.startswith("+") and not slug.startswith("joinchat"):
-                    chat_id = f"@{slug}"
-                else:
-                    chat_id = raw
-                display = raw
+                if not slug:
+                    # No usable slug, treat as display-only link
+                    return "", raw, raw
+                # Invite-style links like https://t.me/+hash or /joinchat/...
+                if slug.startswith("+") or slug.startswith("joinchat"):
+                    # We cannot translate this into a chat_id that Telegram Bot API accepts,
+                    # so we use it only as a join URL and NEVER for membership checks.
+                    return "", raw, raw
+                # Normal public username link: https://t.me/username
+                username = slug
+                chat_id = f"@{username}"
+                display = f"@{username}"
                 join_url = raw
                 return chat_id, display, join_url
         except Exception:
             # Fall through to generic handling below
             pass
-        # Unknown URL – use as display and join URL, but Telegram API won't accept it as chat_id
-        return raw, raw, raw
+        # Non-Telegram URL – display/join only, not usable as chat_id
+        return "", raw, raw
 
     # Username with '@'
     if raw.startswith("@"):
@@ -117,15 +121,36 @@ async def get_required_channel():
             logging.error(f"Failed to fetch required channel: {e}")
         return ""
 
+async def get_required_channel_link():
+    """Fetch the optional required channel invite/link from backend"""
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
+        try:
+            resp = await client.get(f"{API_BASE_URL}/settings/required_channel")
+            if resp.status_code == 200:
+                data = resp.json()
+                return (data.get("required_channel_link") or "").strip()
+        except Exception as e:
+            logging.error(f"Failed to fetch required channel link: {e}")
+        return ""
+
 async def check_channel_membership(bot: Bot, user_id: int, channel: str) -> bool:
     """Check if user is a member of the channel using Telegram API"""
     if not channel:
         return True  # No channel required
     
-    try:
-        # Normalize channel into a chat_id usable by Telegram
-        chat_id, _, _ = parse_required_channel(channel)
+    # Normalize channel into a chat_id usable by Telegram
+    chat_id, _, _ = parse_required_channel(channel)
+    if not chat_id:
+        # This happens when required_channel is configured as an invite link
+        # (e.g. https://t.me/+hash) or non-Telegram URL. We cannot perform a
+        # real membership check in this case.
+        logging.warning(
+            "Required channel '%s' is an invite/URL without a resolvable chat_id; "
+            "skipping Telegram membership check.", channel
+        )
+        return True
 
+    try:
         member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
         # Status can be: member, administrator, creator, left, kicked, restricted
         return member.status in ["member", "administrator", "creator"]
@@ -163,24 +188,32 @@ class ChannelVerificationMiddleware(BaseMiddleware):
         if not bot:
             return await handler(event, data)
         
-        # Get required channel
-        required_channel = await get_required_channel()
-        if not required_channel:
-            # No channel required, allow access
+        # Get required channel configuration
+        required_channel = await get_required_channel()            # ID or @username for strict checks
+        required_channel_link = await get_required_channel_link()  # Optional invite URL for join button
+
+        if not required_channel and not required_channel_link:
+            # No channel requirement configured, allow access
             return await handler(event, data)
-        
-        # Check membership
-        is_member = await check_channel_membership(bot, user.id, required_channel)
+
+        # Determine whether we can perform a strict membership check
+        is_member = False
+        if required_channel:
+            is_member = await check_channel_membership(bot, user.id, required_channel)
         
         if not is_member:
-            # User is not a member, show join message
+            # User is not a member (or we cannot verify), show join message
             lang = user.language_code or "en"
             initial_lang = "fa" if "fa" in lang else "en"
-            
-            # Normalize channel for display and join URL
-            _, channel_display, join_url = parse_required_channel(required_channel)
-            channel_display = channel_display or required_channel
-            
+
+            # Decide what to show as the channel label
+            display_source = required_channel or required_channel_link
+            _, channel_display, fallback_join_url = parse_required_channel(display_source)
+            channel_display = channel_display or display_source
+
+            # Decide which URL the Join button should open
+            join_url = required_channel_link or fallback_join_url
+
             msg_text = (
                 f"🔒 <b>Channel Membership Required</b>\n\n"
                 f"🇺🇸 Please join our channel to continue using this bot:\n"

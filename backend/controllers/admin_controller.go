@@ -430,7 +430,10 @@ func UpdateServer(c *fiber.Ctx) error {
 	return c.JSON(server)
 }
 
-const requiredChannelKey = "required_channel"
+const (
+	requiredChannelKey     = "required_channel"      // stores channel ID / @username for strict checks
+	requiredChannelLinkKey = "required_channel_link" // optional invite URL used for Join button
+)
 
 // GetSettings returns current bot settings (card number, required channel, etc.)
 func GetSettings(c *fiber.Ctx) error {
@@ -439,18 +442,25 @@ func GetSettings(c *fiber.Ctx) error {
 		requiredChannel = value
 	}
 
+	requiredChannelLink := ""
+	if value, ok := getSettingValue(requiredChannelLinkKey); ok {
+		requiredChannelLink = value
+	}
+
 	return c.JSON(fiber.Map{
-		"admin_card_number": os.Getenv("ADMIN_CARD_NUMBER"),
-		"bot_name":          os.Getenv("BOT_NAME"),
-		"required_channel":  requiredChannel,
+		"admin_card_number":   os.Getenv("ADMIN_CARD_NUMBER"),
+		"bot_name":            os.Getenv("BOT_NAME"),
+		"required_channel":    requiredChannel,
+		"required_channel_link": requiredChannelLink,
 	})
 }
 
 // UpdateSettings updates bot settings
 func UpdateSettings(c *fiber.Ctx) error {
 	type SettingsReq struct {
-		AdminCardNumber *string `json:"admin_card_number"`
-		RequiredChannel *string `json:"required_channel"`
+		AdminCardNumber     *string `json:"admin_card_number"`
+		RequiredChannel     *string `json:"required_channel"`      // ID or @username
+		RequiredChannelLink *string `json:"required_channel_link"` // optional invite URL
 	}
 
 	var req SettingsReq
@@ -474,15 +484,33 @@ func UpdateSettings(c *fiber.Ctx) error {
 		}
 	}
 
+	if req.RequiredChannelLink != nil {
+		linkValue := strings.TrimSpace(*req.RequiredChannelLink)
+		if linkValue == "" {
+			// Delete the invite-link setting if emptied
+			database.DB.Where("key = ?", requiredChannelLinkKey).Delete(&models.AppSetting{})
+		} else {
+			if err := setSettingValue(requiredChannelLinkKey, linkValue); err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to update required channel link setting"})
+			}
+		}
+	}
+
 	requiredChannel := ""
 	if value, ok := getSettingValue(requiredChannelKey); ok {
 		requiredChannel = value
 	}
 
+	requiredChannelLink := ""
+	if value, ok := getSettingValue(requiredChannelLinkKey); ok {
+		requiredChannelLink = value
+	}
+
 	return c.JSON(fiber.Map{
-		"message":           "Settings updated",
-		"admin_card_number": os.Getenv("ADMIN_CARD_NUMBER"),
-		"required_channel":  requiredChannel,
+		"message":              "Settings updated",
+		"admin_card_number":    os.Getenv("ADMIN_CARD_NUMBER"),
+		"required_channel":     requiredChannel,
+		"required_channel_link": requiredChannelLink,
 	})
 }
 
@@ -494,7 +522,13 @@ func GetRequiredChannel(c *fiber.Ctx) error {
 		requiredChannel = value
 	}
 
+	requiredChannelLink := ""
+	if value, ok := getSettingValue(requiredChannelLinkKey); ok {
+		requiredChannelLink = value
+	}
+
 	return c.JSON(fiber.Map{
-		"required_channel": requiredChannel,
+		"required_channel":     requiredChannel,
+		"required_channel_link": requiredChannelLink,
 	})
 }

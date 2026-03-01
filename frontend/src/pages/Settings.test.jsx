@@ -33,6 +33,7 @@ describe('Settings', () => {
           admin_card_number: '1234-5678-9012-3456',
           bot_name: 'TestBot',
           required_channel: '@mychannel',
+          required_channel_link: 'https://t.me/+invite',
         })
       )
 
@@ -45,6 +46,7 @@ describe('Settings', () => {
     })
 
     expect(screen.getByDisplayValue('@mychannel')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('https://t.me/+invite')).toBeInTheDocument()
     expect(mockApiFetch).toHaveBeenCalledWith('/admin/servers')
     expect(mockApiFetch).toHaveBeenCalledWith('/admin/settings')
   })
@@ -57,6 +59,7 @@ describe('Settings', () => {
           admin_card_number: '',
           bot_name: '',
           required_channel: '',
+          required_channel_link: '',
         })
       )
       .mockResolvedValueOnce(
@@ -64,14 +67,15 @@ describe('Settings', () => {
           message: 'Settings updated',
           admin_card_number: '',
           required_channel: '@newchannel',
+          required_channel_link: '',
         })
       )
 
     render(<Settings />)
 
-    const channelInput = await screen.findByPlaceholderText('@mychannel or channel ID')
-    await userEvent.clear(channelInput)
-    await userEvent.type(channelInput, '@newchannel')
+    const idInput = await screen.findByPlaceholderText('@mychannel or -1001234567890')
+    await userEvent.clear(idInput)
+    await userEvent.type(idInput, '@newchannel')
 
     const saveBtn = screen.getAllByText('Save').find(btn => 
       btn.closest('.glass-card')?.querySelector('input[placeholder*="channel"]')
@@ -81,7 +85,7 @@ describe('Settings', () => {
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith('/admin/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ required_channel: '@newchannel' }),
+        body: JSON.stringify({ required_channel: '@newchannel', required_channel_link: null }),
       })
     })
 
@@ -96,6 +100,7 @@ describe('Settings', () => {
           admin_card_number: '',
           bot_name: '',
           required_channel: '@mychannel',
+          required_channel_link: '',
         })
       )
       .mockResolvedValueOnce(
@@ -108,8 +113,8 @@ describe('Settings', () => {
 
     render(<Settings />)
 
-    const channelInput = await screen.findByDisplayValue('@mychannel')
-    await userEvent.clear(channelInput)
+    const idInput = await screen.findByDisplayValue('@mychannel')
+    await userEvent.clear(idInput)
 
     const saveBtn = screen.getAllByText('Save').find(btn => 
       btn.closest('.glass-card')?.querySelector('input[placeholder*="channel"]')
@@ -119,7 +124,7 @@ describe('Settings', () => {
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith('/admin/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ required_channel: null }),
+        body: JSON.stringify({ required_channel: null, required_channel_link: null }),
       })
     })
 
@@ -134,6 +139,7 @@ describe('Settings', () => {
           admin_card_number: '',
           bot_name: '',
           required_channel: '@mychannel',
+          required_channel_link: '',
         })
       )
 
@@ -152,6 +158,7 @@ describe('Settings', () => {
           admin_card_number: '',
           bot_name: '',
           required_channel: '',
+          required_channel_link: '',
         })
       )
 
@@ -170,14 +177,15 @@ describe('Settings', () => {
           admin_card_number: '',
           bot_name: '',
           required_channel: '',
+          required_channel_link: '',
         })
       )
       .mockRejectedValueOnce(new Error('network error'))
 
     render(<Settings />)
 
-    const channelInput = await screen.findByPlaceholderText('@mychannel or channel ID')
-    await userEvent.type(channelInput, '@newchannel')
+    const idInput = await screen.findByPlaceholderText('@mychannel or -1001234567890')
+    await userEvent.type(idInput, '@newchannel')
 
     const saveBtn = screen.getAllByText('Save').find(btn => 
       btn.closest('.glass-card')?.querySelector('input[placeholder*="channel"]')

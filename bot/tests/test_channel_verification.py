@@ -8,6 +8,7 @@ from bot import (
     check_channel_membership,
     channel_verified_cache,
     auth_cache,
+    get_required_channel_link,
 )
 import httpx
 
@@ -108,8 +109,10 @@ async def test_channel_middleware_no_channel_required(mock_message, mock_bot):
     channel_verified_cache.clear()
     auth_cache.clear()
     
-    with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel:
+    with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link:
         mock_get_channel.return_value = ""
+        mock_get_link.return_value = ""
         
         data = {"bot": mock_bot}
         await middleware(handler, mock_message, data)
@@ -128,8 +131,10 @@ async def test_channel_middleware_user_is_member(mock_message, mock_bot):
     auth_cache.add(123456)
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_check.return_value = True
         
         data = {"bot": mock_bot}
@@ -150,8 +155,10 @@ async def test_channel_middleware_user_not_member_shows_message(mock_message, mo
     auth_cache.add(123456)
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_check.return_value = False
         
         data = {"bot": mock_bot}
@@ -180,8 +187,10 @@ async def test_channel_middleware_skips_admin(mock_message, mock_bot, admin_user
     auth_cache.clear()
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("os.getenv") as mock_getenv:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_getenv.return_value = "999999"  # Admin ID
         
         data = {"bot": mock_bot}
@@ -202,8 +211,10 @@ async def test_channel_middleware_uses_cache(mock_message, mock_bot):
     auth_cache.add(123456)
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         
         data = {"bot": mock_bot}
         await middleware(handler, mock_message, data)
@@ -222,9 +233,11 @@ async def test_verify_channel_callback_success(mock_callback):
     from handlers import verify_channel_callback
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check, \
          patch("handlers.get_user_lang", new_callable=AsyncMock) as mock_lang:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_check.return_value = True
         mock_lang.return_value = "en"
         
@@ -243,9 +256,11 @@ async def test_verify_channel_callback_not_member(mock_callback):
     from handlers import verify_channel_callback
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check, \
          patch("handlers.get_user_lang", new_callable=AsyncMock) as mock_lang:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_check.return_value = False
         mock_lang.return_value = "en"
         
@@ -271,8 +286,10 @@ async def test_channel_gate_e2e_flow_block_verify_then_allow(mock_message, mock_
 
     # Step 1: User is not a member -> blocked by middleware
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_check.return_value = False
 
         await middleware(handler, mock_message, {"bot": mock_bot})
@@ -285,9 +302,11 @@ async def test_channel_gate_e2e_flow_block_verify_then_allow(mock_message, mock_
     mock_callback.from_user = mock_message.from_user
     mock_callback.bot = mock_bot
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check, \
          patch("handlers.get_user_lang", new_callable=AsyncMock) as mock_lang:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
         mock_check.return_value = True
         mock_lang.return_value = "en"
 
@@ -299,8 +318,10 @@ async def test_channel_gate_e2e_flow_block_verify_then_allow(mock_message, mock_
     handler.reset_mock()
     mock_message.answer.reset_mock()
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
+         patch("bot.get_required_channel_link", new_callable=AsyncMock) as mock_get_link, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
         mock_get_channel.return_value = "@mychannel"
+        mock_get_link.return_value = ""
 
         await middleware(handler, mock_message, {"bot": mock_bot})
 

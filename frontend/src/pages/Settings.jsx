@@ -10,7 +10,8 @@ export default function Settings() {
     const [editData, setEditData] = useState({})
     const [showPasswords, setShowPasswords] = useState({})
     const [cardNumber, setCardNumber] = useState('')
-    const [requiredChannel, setRequiredChannel] = useState('')
+    const [requiredChannelId, setRequiredChannelId] = useState('')
+    const [requiredChannelLink, setRequiredChannelLink] = useState('')
     const [toast, setToast] = useState(null)
 
     useEffect(() => {
@@ -31,7 +32,8 @@ export default function Settings() {
                 const data = await settingsRes.json()
                 setSettings(data)
                 setCardNumber(data.admin_card_number || '')
-                setRequiredChannel(data.required_channel || '')
+                setRequiredChannelId(data.required_channel || '')
+                setRequiredChannelLink(data.required_channel_link || '')
             }
         } catch (err) {
             console.error("Failed to fetch settings", err)
@@ -98,15 +100,21 @@ export default function Settings() {
 
     const saveRequiredChannel = async () => {
         try {
-            const channelValue = requiredChannel.trim() || null
+            const idValue = requiredChannelId.trim() || null
+            const linkValue = requiredChannelLink.trim() || null
             const res = await apiFetch('/admin/settings', {
                 method: 'PATCH',
-                body: JSON.stringify({ required_channel: channelValue })
+                body: JSON.stringify({
+                    required_channel: idValue,
+                    required_channel_link: linkValue,
+                })
             })
             if (res.ok) {
                 const data = await res.json()
-                setRequiredChannel(data.required_channel || '')
-                showToast(true, channelValue ? 'Required channel updated' : 'Channel requirement disabled')
+                setRequiredChannelId(data.required_channel || '')
+                setRequiredChannelLink(data.required_channel_link || '')
+                const hasAny = idValue || linkValue
+                showToast(true, hasAny ? 'Required channel updated' : 'Channel requirement disabled')
             } else {
                 showToast(false, 'Failed to update required channel')
             }
@@ -194,26 +202,47 @@ export default function Settings() {
                     </span>
                     <div>
                         <h3 style={{ margin: 0 }}>Required Channel</h3>
-                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Force users to join a channel before using the bot. Enter channel username (e.g., @mychannel) or leave empty to disable.</p>
+                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            Force users to join a channel before using the bot.
+                            Use the <strong>Channel ID / username</strong> for strict verification, and optionally an
+                            <strong> invite link</strong> so users can join with one tap.
+                        </p>
                     </div>
                 </div>
-                <div className="flex gap-4 items-center">
-                    <input
-                        type="text"
-                        className="input-field"
-                        value={requiredChannel}
-                        onChange={(e) => setRequiredChannel(e.target.value)}
-                        placeholder="@mychannel or channel ID"
-                        style={{ flex: 1, marginBottom: 0 }}
-                    />
-                    <button className="btn btn-primary" onClick={saveRequiredChannel} style={{ height: '50px' }}>
-                        <Save size={18} />
-                        Save
-                    </button>
+                <div className="flex flex-col gap-3">
+                    <div className="flex gap-4 items-center">
+                        <input
+                            type="text"
+                            className="input-field"
+                            value={requiredChannelId}
+                            onChange={(e) => setRequiredChannelId(e.target.value)}
+                            placeholder="@mychannel or -1001234567890"
+                            style={{ flex: 1, marginBottom: 0 }}
+                        />
+                    </div>
+                    <div className="flex gap-4 items-center">
+                        <input
+                            type="text"
+                            className="input-field"
+                            value={requiredChannelLink}
+                            onChange={(e) => setRequiredChannelLink(e.target.value)}
+                            placeholder="https://t.me/your_invite_link (optional)"
+                            style={{ flex: 1, marginBottom: 0 }}
+                        />
+                        <button className="btn btn-primary" onClick={saveRequiredChannel} style={{ height: '50px' }}>
+                            <Save size={18} />
+                            Save
+                        </button>
+                    </div>
                 </div>
-                {requiredChannel && (
+                {(requiredChannelId || requiredChannelLink) && (
                     <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         <strong>Note:</strong> Make sure your bot is added as an administrator to the channel to verify membership.
+                        {requiredChannelLink && (
+                            <div style={{ marginTop: '6px' }}>
+                                <strong>Tip:</strong> For private channels, put the channel ID above (for strict checking) and the invite link here so users can join with one tap.
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
