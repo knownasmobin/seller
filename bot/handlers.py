@@ -13,7 +13,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:3000/api/v1")
 @router.callback_query(F.data == "verify_channel")
 async def verify_channel_callback(callback: CallbackQuery):
     """Handle channel verification button press"""
-    from bot import check_channel_membership, get_required_channel, channel_verified_cache
+    from bot import check_channel_membership, get_required_channel, channel_verified_cache, parse_required_channel
     
     user = callback.from_user
     bot = callback.bot
@@ -37,7 +37,9 @@ async def verify_channel_callback(callback: CallbackQuery):
         except:
             pass
     else:
-        channel_display = required_channel if required_channel.startswith("@") else f"@{required_channel}"
+        # Use the same parsing logic as middleware for consistent UX
+        _, channel_display, _ = parse_required_channel(required_channel)
+        channel_display = channel_display or required_channel
         error_msg = (
             f"❌ You haven't joined the channel yet.\n\n"
             f"Please join: {channel_display}\n"

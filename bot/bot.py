@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 load_dotenv("../.env")
 logging.basicConfig(level=logging.INFO)
@@ -41,6 +42,69 @@ async def get_or_create_user(telegram_id: int, language: str, invite_code: str =
 auth_cache = set()
 channel_verified_cache = set()
 
+def parse_required_channel(required_channel: str):
+    """
+    Normalize the required_channel value into:
+      - chat_id: value suitable for Telegram API (username like '@x' or numeric ID)
+      - display: human-friendly string to show in messages
+      - join_url: URL that user can click to join (if available)
+
+    Supported input formats:
+      - '@publicchannel'
+      - 'publicchannel'
+      - numeric IDs like '-1001234567890' (private/public with ID)
+      - full URLs like 'https://t.me/publicchannel'
+      - full URLs like 'https://t.me/private_invite_hash' (no membership check possible, UI only)
+    """
+    raw = (required_channel or "").strip()
+    if not raw:
+        return "", "", None
+
+    # URL form (t.me / telegram.me)
+    if raw.startswith("http://") or raw.startswith("https://"):
+        try:
+            parsed = urlparse(raw)
+            if parsed.netloc in ("t.me", "telegram.me"):
+                slug = parsed.path.lstrip("/")
+                # For links like https://t.me/+invitehash or /joinchat/..., we cannot
+                # derive a chat_id usable for membership checks. In that case we only
+                # use the URL for display/join, and let membership check fallback.
+                if slug and not slug.startswith("+") and not slug.startswith("joinchat"):
+                    chat_id = f"@{slug}"
+                else:
+                    chat_id = raw
+                display = raw
+                join_url = raw
+                return chat_id, display, join_url
+        except Exception:
+            # Fall through to generic handling below
+            pass
+        # Unknown URL – use as display and join URL, but Telegram API won't accept it as chat_id
+        return raw, raw, raw
+
+    # Username with '@'
+    if raw.startswith("@"):
+        username = raw
+        display = username
+        join_url = f"https://t.me/{username.lstrip('@')}"
+        return username, display, join_url
+
+    # Pure numeric ID (private/public channel ID)
+    try:
+        numeric_id = int(raw)
+        # For private channels, ID is enough for membership check, but there is no
+        # universal join link; admins should share invite links manually.
+        chat_id = numeric_id
+        display = "our private channel"
+        join_url = None
+        return chat_id, display, join_url
+    except ValueError:
+        # Treat as bare username without '@'
+        username = f"@{raw}"
+        display = username
+        join_url = f"https://t.me/{raw}"
+        return username, display, join_url
+
 async def get_required_channel():
     """Fetch the required channel from backend"""
     async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
@@ -59,17 +123,9 @@ async def check_channel_membership(bot: Bot, user_id: int, channel: str) -> bool
         return True  # No channel required
     
     try:
-        # Channel can be username (e.g., @channel) or ID (e.g., -1001234567890)
-        chat_id = channel
-        if channel.startswith("@"):
-            chat_id = channel
-        else:
-            # Try to parse as integer ID
-            try:
-                chat_id = int(channel)
-            except ValueError:
-                chat_id = channel
-        
+        # Normalize channel into a chat_id usable by Telegram
+        chat_id, _, _ = parse_required_channel(channel)
+
         member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
         # Status can be: member, administrator, creator, left, kicked, restricted
         return member.status in ["member", "administrator", "creator"]
@@ -116,8 +172,9 @@ class ChannelVerificationMiddleware(BaseMiddleware):
             lang = user.language_code or "en"
             initial_lang = "fa" if "fa" in lang else "en"
             
-            # Format channel name for display
-            channel_display = required_channel if required_channel.startswith("@") else f"@{required_channel}"
+            # Normalize channel for display and join URL
+            _, channel_display, join_url = parse_required_channel(required_channel)
+            channel_display = channel_display or required_channel
             
             msg_text = (
                 f"🔒 <b>Channel Membership Required</b>\n\n"
@@ -136,15 +193,12 @@ class ChannelVerificationMiddleware(BaseMiddleware):
                 text="✅ Verify / تأیید" if initial_lang == "en" else "✅ تأیید",
                 callback_data="verify_channel"
             )
-            
-            # Create join button - only if channel is a username (not numeric ID)
             buttons = []
-            if required_channel.startswith("@"):
-                # Username format: @channel -> https://t.me/channel
-                channel_username = required_channel.lstrip("@")
+            # Create join button when we have a usable URL (public or invite link)
+            if join_url:
                 join_button = InlineKeyboardButton(
                     text=f"📢 Join Channel / عضویت در کانال" if initial_lang == "en" else f"📢 عضویت در کانال",
-                    url=f"https://t.me/{channel_username}"
+                    url=join_url
                 )
                 buttons.append([join_button])
             buttons.append([verify_button])
