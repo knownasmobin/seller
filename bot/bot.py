@@ -131,9 +131,9 @@ async def check_channel_membership(bot: Bot, user_id: int, channel: str) -> bool
         return member.status in ["member", "administrator", "creator"]
     except Exception as e:
         logging.error(f"Failed to check channel membership for {user_id} in {channel}: {e}")
-        # If bot is not admin of channel or channel doesn't exist, allow access
-        # Admin should ensure bot is added to channel as admin
-        return True
+        # Fail closed: if we cannot verify membership (e.g. bot missing or not admin),
+        # treat the user as NOT a member so the gate is effectively enforced.
+        return False
 
 class ChannelVerificationMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data: dict):
