@@ -41,10 +41,27 @@ async def verify_channel_callback(callback: CallbackQuery):
             else "✅ تأیید شد! اکنون می‌توانید از ربات استفاده کنید."
         )
         await callback.answer(success_msg, show_alert=True)
+        # Remove the gate message and show main menu
         try:
             await callback.message.delete()
         except Exception:
             pass
+
+        from keyboards import get_main_menu
+        admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+        is_admin = str(user.id) in admin_ids
+
+        # Use the same main menu text as /start (store welcome)
+        welcome_text = (
+            "👋 Welcome to our VPN Store!\n\n"
+            "Here you can buy high-speed V2Ray and WireGuard configs.\n"
+            "Please select an option below:"
+        ) if lang == "en" else (
+            "👋 به فروشگاه VPN ما خوش آمدید!\n\n"
+            "در اینجا می‌توانید کانفیگ‌های پرسرعت V2Ray و WireGuard را خریداری کنید.\n"
+            "لطفا یک گزینه را انتخاب کنید:"
+        )
+        await callback.message.answer(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
         return
 
     # Normal strict check for @username / channel ID
@@ -63,6 +80,22 @@ async def verify_channel_callback(callback: CallbackQuery):
             await callback.message.delete()
         except Exception:
             pass
+
+        from keyboards import get_main_menu
+        admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
+        is_admin = str(user.id) in admin_ids
+
+        # Use the same main menu text as /start (store welcome)
+        welcome_text = (
+            "👋 Welcome to our VPN Store!\n\n"
+            "Here you can buy high-speed V2Ray and WireGuard configs.\n"
+            "Please select an option below:"
+        ) if lang == "en" else (
+            "👋 به فروشگاه VPN ما خوش آمدید!\n\n"
+            "در اینجا می‌توانید کانفیگ‌های پرسرعت V2Ray و WireGuard را خریداری کنید.\n"
+            "لطفا یک گزینه را انتخاب کنید:"
+        )
+        await callback.message.answer(welcome_text, reply_markup=get_main_menu(lang, is_admin=is_admin))
     else:
         error_msg = (
             f"❌ You haven't joined the channel yet.\n\n"
