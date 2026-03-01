@@ -14,6 +14,7 @@ func Migrate() {
 		&models.Order{},
 		&models.Subscription{},
 		&models.Endpoint{},
+		&models.AppSetting{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database: \n", err)

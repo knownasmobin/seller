@@ -70,7 +70,7 @@ func GetWGConfig(c *fiber.Ctx) error {
 	if botName == "" {
 		botName = "ghostwire t.me/theghostwirebot"
 	}
-	wireSockApps := os.Getenv("WIRESOCK_ALLOWED_APPS")
+	wireSockApps := getWireSockAllowedApps()
 
 	// sub.ConfigLink holds the raw wgportal config
 	transformed := vpn.TransformWGConfig(sub.ConfigLink, botName, endpointAddr, wireSockApps)

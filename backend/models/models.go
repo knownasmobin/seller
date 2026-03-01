@@ -85,3 +85,12 @@ type Endpoint struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
+
+// AppSetting stores runtime-configurable key/value settings.
+type AppSetting struct {
+	ID        uint      `gorm:"primaryKey" json:"ID"`
+	Key       string    `gorm:"size:100;uniqueIndex;not null" json:"key"`
+	Value     string    `gorm:"type:text" json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

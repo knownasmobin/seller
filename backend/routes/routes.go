@@ -68,4 +68,6 @@ func SetupRoutes(router fiber.Router) {
 	admin.Patch("/servers/:id", controllers.UpdateServer)
 	admin.Get("/settings", controllers.GetSettings)
 	admin.Patch("/settings", controllers.UpdateSettings)
+	admin.Get("/wireguard", controllers.GetWireGuardDashboard)
+	admin.Patch("/wireguard", controllers.UpdateWireGuardSettings)
 }
