@@ -172,6 +172,7 @@ async def process_approve_order(callback: CallbackQuery, bot):
                 if error_type == "provisioning_failed":
                     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                     markup = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔁 Retry Provisioning", callback_data=f"retry_provision_{order_id}")],
                         [InlineKeyboardButton(text="⚙️ Set Manual Config", callback_data=f"manual_config_{order_id}")],
                         [InlineKeyboardButton(text="❌ Reject Order instead", callback_data=f"reject_order_{order_id}")]
                     ])
@@ -280,6 +281,50 @@ async def process_crypto_payment(callback: CallbackQuery, state: FSMContext):
         except Exception as e:
             error_text = "❌ Error connecting to payment gateway." if lang == "en" else "❌ خطا در ارتباط با درگاه پرداخت."
             await msg.edit_text(error_text)
+
+
+@router.callback_query(F.data.startswith("retry_provision_"))
+async def process_retry_provision(callback: CallbackQuery, bot):
+    """
+    Admin retry button when automatic provisioning failed after approving a receipt.
+    Triggers the same /orders/{id}/approve endpoint again.
+    """
+    order_id = callback.data.split("_")[-1]
+
+    async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
+        try:
+            resp = await client.post(f"{API_BASE_URL}/orders/{order_id}/approve", timeout=65.0)
+            data = resp.json()
+
+            if resp.status_code == 200:
+                # Success on retry – append note and remove extra buttons
+                new_caption = (callback.message.caption or "") + "\n\n✅ **RETRIED** — VPN config provisioned and sent to user."
+                await callback.message.edit_caption(caption=new_caption)
+                await callback.answer("✅ Retry succeeded! Config sent to user.", show_alert=True)
+                return
+
+            error_type = data.get("error", "")
+            error_msg = data.get("message", "Unknown error")
+
+            if error_type == "provisioning_failed":
+                # Still failing – keep retry / manual / reject options
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔁 Retry Provisioning", callback_data=f"retry_provision_{order_id}")],
+                    [InlineKeyboardButton(text="⚙️ Set Manual Config", callback_data=f"manual_config_{order_id}")],
+                    [InlineKeyboardButton(text="❌ Reject Order", callback_data=f"reject_order_{order_id}")]
+                ])
+                new_caption = (callback.message.caption or "") + "\n\n⚠️ **Retry Failed!** Server or API is still failing."
+                await callback.message.edit_caption(caption=new_caption, reply_markup=markup)
+                await callback.answer("⚠️ Retry failed: provisioning still failing.", show_alert=True)
+            else:
+                # Some other backend error
+                new_caption = (callback.message.caption or "") + f"\n\n⚠️ Retry issue: {error_msg}"
+                await callback.message.edit_caption(caption=new_caption)
+                await callback.answer(f"Issue: {error_msg}", show_alert=True)
+        except Exception as e:
+            logging.error(f"Retry provision error: {e}")
+            await callback.answer("❌ Backend connection timeout/error", show_alert=True)
 @router.callback_query(F.data.startswith("manual_config_"))
 async def process_manual_config_btn(callback: CallbackQuery, state: FSMContext):
     order_id = callback.data.split("_")[-1]
