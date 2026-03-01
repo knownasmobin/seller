@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/username/sell-bot-backend/database"
@@ -16,7 +17,7 @@ func setupAdminTestDB(t *testing.T) {
 	t.Helper()
 	os.Setenv("DB_PATH", ":memory:")
 	database.Connect()
-	err := database.DB.AutoMigrate(&models.User{}, &models.AppSetting{})
+	err := database.DB.AutoMigrate(&models.User{}, &models.AppSetting{}, &models.Subscription{})
 	if err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
@@ -27,6 +28,7 @@ func setupAdminTestDB(t *testing.T) {
 func setupAdminApp() *fiber.App {
 	app := fiber.New()
 	app.Post("/admin/users/:telegram_id/message", SendMessageToUser)
+	app.Post("/admin/broadcast", BroadcastMessage)
 	return app
 }
 
@@ -348,6 +350,38 @@ func TestUpdateSettings_DeletesChannelWhenEmpty(t *testing.T) {
 	var deletedSetting models.AppSetting
 	if err := database.DB.Where("key = ?", "required_channel").First(&deletedSetting).Error; err == nil {
 		t.Fatalf("expected setting to be deleted, but it still exists")
+	}
+}
+
+func TestGetBroadcastUsers_ActiveDeduplicatesUsersWithMultipleSubscriptions(t *testing.T) {
+	setupAdminTestDB(t)
+
+	u1 := models.User{TelegramID: 1111, Language: "en"}
+	u2 := models.User{TelegramID: 2222, Language: "en"}
+	if err := database.DB.Create(&u1).Error; err != nil {
+		t.Fatalf("failed to create user1: %v", err)
+	}
+	if err := database.DB.Create(&u2).Error; err != nil {
+		t.Fatalf("failed to create user2: %v", err)
+	}
+
+	now := time.Now()
+	subs := []models.Subscription{
+		{UserID: u1.ID, PlanID: 1, Status: "active", StartDate: now.Add(-24 * time.Hour), ExpiryDate: now.Add(24 * time.Hour), UUID: "sub-1"},
+		{UserID: u1.ID, PlanID: 2, Status: "active", StartDate: now.Add(-24 * time.Hour), ExpiryDate: now.Add(48 * time.Hour), UUID: "sub-2"},
+		{UserID: u2.ID, PlanID: 3, Status: "active", StartDate: now.Add(-24 * time.Hour), ExpiryDate: now.Add(24 * time.Hour), UUID: "sub-3"},
+	}
+	if err := database.DB.Create(&subs).Error; err != nil {
+		t.Fatalf("failed to create subscriptions: %v", err)
+	}
+
+	users, err := getBroadcastUsers("active")
+	if err != nil {
+		t.Fatalf("getBroadcastUsers returned error: %v", err)
+	}
+
+	if len(users) != 2 {
+		t.Fatalf("expected 2 unique users, got %d", len(users))
 	}
 }
 

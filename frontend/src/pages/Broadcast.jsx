@@ -29,7 +29,15 @@ export default function Broadcast() {
             const data = await res.json()
 
             if (res.ok) {
-                setResult({ success: true, sent: data.sent, failed: data.failed, total: data.total })
+                const status = data.status || 'success'
+                const isSuccess = status === 'success' || status === 'partial_success'
+                setResult({
+                    success: isSuccess,
+                    partial: status === 'partial_success',
+                    sent: data.sent ?? 0,
+                    failed: data.failed ?? 0,
+                    total: data.total ?? 0,
+                })
                 setMessage('')
             } else {
                 setResult({ success: false, error: data.error || 'Unknown error' })
@@ -190,7 +198,9 @@ export default function Broadcast() {
                                 <>
                                     <div className="flex items-center gap-4" style={{ marginBottom: '16px' }}>
                                         <CheckCircle size={24} style={{ color: 'var(--success)' }} />
-                                        <h3 style={{ margin: 0, color: 'var(--success)' }}>Sent Successfully!</h3>
+                                        <h3 style={{ margin: 0, color: 'var(--success)' }}>
+                                            {result.partial ? 'Sent with Partial Failures' : 'Sent Successfully!'}
+                                        </h3>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', textAlign: 'center' }}>
                                         <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '12px' }}>

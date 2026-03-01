@@ -205,6 +205,40 @@ func GetAdminStats(c *fiber.Ctx) error {
 	})
 }
 
+func getBroadcastUsers(target string) ([]models.User, error) {
+	var users []models.User
+
+	if target == "active" {
+		// Users with at least one active, non-expired subscription
+		// Use DISTINCT to avoid duplicate recipients for users with multiple subscriptions.
+		err := database.DB.
+			Model(&models.User{}).
+			Distinct("users.id", "users.telegram_id", "users.language", "users.balance", "users.is_admin", "users.invited_by", "users.created_at", "users.updated_at", "users.deleted_at").
+			Joins("JOIN subscriptions ON subscriptions.user_id = users.id").
+			Where("subscriptions.status = ? AND subscriptions.expiry_date > ?", "active", time.Now()).
+			Find(&users).Error
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if err := database.DB.Find(&users).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	// Defensive deduplication by Telegram ID.
+	uniq := make(map[int64]models.User)
+	for _, u := range users {
+		uniq[u.TelegramID] = u
+	}
+
+	result := make([]models.User, 0, len(uniq))
+	for _, u := range uniq {
+		result = append(result, u)
+	}
+	return result, nil
+}
+
 // BroadcastMessage sends a Telegram message to users
 // @Summary Broadcast a message to users
 // @Description Sends a message to all users or active subscribers via Telegram Bot API
@@ -234,17 +268,9 @@ func BroadcastMessage(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "BOT_TOKEN not configured"})
 	}
 
-	// Get target users
-	var users []models.User
-	if req.Target == "active" {
-		// Users with at least one active, non-expired subscription
-		database.DB.Where("id IN (?)",
-			database.DB.Table("subscriptions").
-				Select("user_id").
-				Where("status = ? AND expiry_date > ?", "active", time.Now()),
-		).Find(&users)
-	} else {
-		database.DB.Find(&users)
+	users, err := getBroadcastUsers(req.Target)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch broadcast recipients"})
 	}
 
 	sent := 0
@@ -260,7 +286,13 @@ func BroadcastMessage(c *fiber.Ctx) error {
 		}
 	}
 
+	status := "success"
+	if failed > 0 {
+		status = "partial_success"
+	}
+
 	return c.JSON(fiber.Map{
+		"status": status,
 		"sent":   sent,
 		"failed": failed,
 		"total":  len(users),
