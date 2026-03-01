@@ -6,7 +6,8 @@ from bot import (
     ChannelVerificationMiddleware,
     get_required_channel,
     check_channel_membership,
-    channel_verified_cache
+    channel_verified_cache,
+    auth_cache,
 )
 import httpx
 
@@ -105,6 +106,7 @@ async def test_channel_middleware_no_channel_required(mock_message, mock_bot):
     
     # Clear cache
     channel_verified_cache.clear()
+    auth_cache.clear()
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel:
         mock_get_channel.return_value = ""
@@ -122,6 +124,8 @@ async def test_channel_middleware_user_is_member(mock_message, mock_bot):
     
     # Clear cache
     channel_verified_cache.clear()
+    auth_cache.clear()
+    auth_cache.add(123456)
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
@@ -142,6 +146,8 @@ async def test_channel_middleware_user_not_member_shows_message(mock_message, mo
     
     # Clear cache
     channel_verified_cache.clear()
+    auth_cache.clear()
+    auth_cache.add(123456)
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
@@ -171,6 +177,7 @@ async def test_channel_middleware_skips_admin(mock_message, mock_bot, admin_user
     
     # Clear cache
     channel_verified_cache.clear()
+    auth_cache.clear()
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
          patch("os.getenv") as mock_getenv:
@@ -192,6 +199,7 @@ async def test_channel_middleware_uses_cache(mock_message, mock_bot):
     
     # Add user to cache
     channel_verified_cache.add(123456)
+    auth_cache.add(123456)
     
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \
          patch("bot.check_channel_membership", new_callable=AsyncMock) as mock_check:
@@ -258,6 +266,8 @@ async def test_channel_gate_e2e_flow_block_verify_then_allow(mock_message, mock_
     handler = AsyncMock()
 
     channel_verified_cache.clear()
+    auth_cache.clear()
+    auth_cache.add(123456)
 
     # Step 1: User is not a member -> blocked by middleware
     with patch("bot.get_required_channel", new_callable=AsyncMock) as mock_get_channel, \

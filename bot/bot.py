@@ -148,6 +148,11 @@ class ChannelVerificationMiddleware(BaseMiddleware):
         admin_ids = [x.strip() for x in os.getenv("ADMIN_ID", "").split(",") if x.strip()]
         if str(user.id) in admin_ids:
             return await handler(event, data)
+
+        # Only enforce channel gate after user has passed invite/registration.
+        # This ensures the invite-only check always happens first.
+        if user.id not in auth_cache:
+            return await handler(event, data)
         
         # Skip if already verified
         if user.id in channel_verified_cache:
@@ -183,9 +188,10 @@ class ChannelVerificationMiddleware(BaseMiddleware):
                 f"After joining, press the button below to verify."
             ) if initial_lang == "en" else (
                 f"🔒 <b>عضویت در کانال الزامی است</b>\n\n"
-                f"🇮🇷 لطفاً برای ادامه استفاده از ربات، در کانال ما عضو شوید:\n"
+                f"🇮🇷 برای استفاده از ربات باید ابتدا در کانال ما عضو شوید.\n"
                 f"📢 {channel_display}\n\n"
-                f"پس از عضویت، دکمه زیر را فشار دهید."
+                f"۱️⃣ روی دکمه «عضویت در کانال» بزنید و وارد کانال شوید.\n"
+                f"۲️⃣ پس از عضویت، به ربات برگردید و روی دکمه «تأیید» بزنید."
             )
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
