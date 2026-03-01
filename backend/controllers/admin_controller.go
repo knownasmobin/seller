@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -268,8 +270,17 @@ func BroadcastMessage(c *fiber.Ctx) error {
 func sendTelegramMessage(botToken string, chatID int64, message string) error {
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 
-	payload := fmt.Sprintf(`{"chat_id":%d,"text":%q,"parse_mode":"Markdown"}`, chatID, message)
-	resp, err := http.Post(url, "application/json", strings.NewReader(payload))
+	payload := map[string]interface{}{
+		"chat_id":    chatID,
+		"text":       message,
+		"parse_mode": "Markdown",
+	}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %v", err)
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
 	}
@@ -284,8 +295,9 @@ func sendTelegramMessage(botToken string, chatID int64, message string) error {
 }
 
 // SendMessageToUser sends a Telegram message to a specific user by Telegram ID
+// Note: The user must have started a conversation with the bot first (Telegram API requirement)
 // @Summary Send message to a specific user
-// @Description Sends a message to a user by their Telegram ID via Telegram Bot API
+// @Description Sends a message to a user by their Telegram ID via Telegram Bot API. User must have started a conversation with the bot.
 // @Tags Admin
 // @Accept json
 // @Produce json
