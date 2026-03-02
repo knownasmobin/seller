@@ -13,6 +13,7 @@ import (
 // GetOrCreateUserRequest represents the body of the GetOrCreateUser API
 type GetOrCreateUserRequest struct {
 	TelegramID int64  `json:"telegram_id"`
+	Username   string `json:"username"`
 	Language   string `json:"language"`
 	InviteCode string `json:"invite_code"`
 }
@@ -34,6 +35,12 @@ func GetOrCreateUser(c *fiber.Ctx) error {
 
 	var user models.User
 	result := database.DB.Where("telegram_id = ?", req.TelegramID).First(&user)
+
+	// Update username if provided (for existing users)
+	if result.Error == nil && req.Username != "" {
+		user.Username = req.Username
+		database.DB.Save(&user)
+	}
 
 	if result.Error != nil {
 		adminIDs := strings.Split(os.Getenv("ADMIN_ID"), ",")
@@ -81,6 +88,7 @@ func GetOrCreateUser(c *fiber.Ctx) error {
 
 		user = models.User{
 			TelegramID: req.TelegramID,
+			Username:   req.Username,
 			Language:   req.Language,
 			InvitedBy:  invitedBy,
 		}

@@ -29,6 +29,7 @@ export default function Users() {
     const filteredUsers = users.filter(user => {
         const matchesSearch = searchTerm === '' || 
             user.telegram_id.toString().includes(searchTerm) ||
+            (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (user.invited_by && user.invited_by.toString().includes(searchTerm))
         const matchesFilter = filterInvitedBy === '' || 
             (filterInvitedBy === 'none' && user.invited_by === 0) ||
@@ -39,7 +40,10 @@ export default function Users() {
     const getInviterName = (invitedBy) => {
         if (invitedBy === 0) return '—'
         const inviter = users.find(u => u.telegram_id === invitedBy)
-        return inviter ? `@${inviter.telegram_id}` : `@${invitedBy}`
+        if (inviter) {
+            return inviter.username ? `@${inviter.username}` : `@${inviter.telegram_id}`
+        }
+        return `@${invitedBy}`
     }
 
     const totalReferrals = users.reduce((sum, u) => sum + (u.referral_count || 0), 0)
@@ -102,7 +106,7 @@ export default function Users() {
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="Search by Telegram ID or Inviter ID..."
+                            placeholder="Search by Telegram ID, Username, or Inviter ID..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             style={{ paddingLeft: '44px', marginBottom: 0 }}
@@ -134,6 +138,7 @@ export default function Users() {
                     <thead>
                         <tr>
                             <th>Telegram ID</th>
+                            <th>Username</th>
                             <th>Invited By</th>
                             <th>Referrals</th>
                             <th>Balance</th>
@@ -145,7 +150,7 @@ export default function Users() {
                     <tbody>
                         {filteredUsers.length === 0 ? (
                             <tr>
-                                <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                                <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                                     {searchTerm || filterInvitedBy ? 'No users match your filters.' : 'No users yet.'}
                                 </td>
                             </tr>
@@ -154,6 +159,9 @@ export default function Users() {
                                 <tr key={user.id}>
                                     <td style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>
                                         @{user.telegram_id}
+                                    </td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: user.username ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                        {user.username ? `@${user.username}` : '—'}
                                     </td>
                                     <td style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: user.invited_by === 0 ? 'var(--text-muted)' : 'var(--text-main)' }}>
                                         {getInviterName(user.invited_by)}

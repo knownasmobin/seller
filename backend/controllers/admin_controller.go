@@ -544,6 +544,7 @@ func GetUsers(c *fiber.Ctx) error {
 	type UserWithReferrals struct {
 		ID            uint      `json:"id"`
 		TelegramID    int64     `json:"telegram_id"`
+		Username      string    `json:"username"`
 		Language      string    `json:"language"`
 		Balance       float64   `json:"balance"`
 		IsAdmin       bool      `json:"is_admin"`
@@ -554,10 +555,10 @@ func GetUsers(c *fiber.Ctx) error {
 
 	var users []UserWithReferrals
 	database.DB.Table("users").
-		Select("users.id, users.telegram_id, users.language, users.balance, users.is_admin, users.invited_by, users.created_at, COUNT(referrals.id) as referral_count").
+		Select("users.id, users.telegram_id, users.username, users.language, users.balance, users.is_admin, users.invited_by, users.created_at, COUNT(referrals.id) as referral_count").
 		Joins("LEFT JOIN users as referrals ON referrals.invited_by = users.telegram_id AND referrals.deleted_at IS NULL").
 		Where("users.deleted_at IS NULL").
-		Group("users.id, users.telegram_id, users.language, users.balance, users.is_admin, users.invited_by, users.created_at").
+		Group("users.id, users.telegram_id, users.username, users.language, users.balance, users.is_admin, users.invited_by, users.created_at").
 		Order("users.created_at DESC").
 		Scan(&users)
 

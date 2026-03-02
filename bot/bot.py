@@ -22,11 +22,12 @@ dp = Dispatcher()
 class RegistrationState(StatesGroup):
     waiting_for_invite_code = State()
 
-async def get_or_create_user(telegram_id: int, language: str, invite_code: str = ""):
+async def get_or_create_user(telegram_id: int, language: str, invite_code: str = "", username: str = ""):
     async with httpx.AsyncClient(headers={"Authorization": f"Bot {os.getenv('BOT_TOKEN')}"}) as client:
         try:
             payload = {
                 "telegram_id": telegram_id,
+                "username": username,
                 "language": language,
                 "invite_code": invite_code
             }
@@ -278,7 +279,8 @@ class InviteMiddleware(BaseMiddleware):
         user_lang = user.language_code or "en"
         initial_lang = "fa" if "fa" in user_lang else "en"
         
-        user_data, error_data = await get_or_create_user(user.id, initial_lang)
+        username = user.username or ""
+        user_data, error_data = await get_or_create_user(user.id, initial_lang, "", username)
         
         if error_data and error_data.get("error") in ["invite_code_required", "invalid_invite_code"]:
             if state:
@@ -314,7 +316,8 @@ async def cmd_start(message: types.Message, command: CommandObject, state: FSMCo
     invite_code = command.args.strip() if command.args else ""
 
     # Sync with backend - returns saved language for existing users
-    user_data, error_data = await get_or_create_user(message.from_user.id, initial_lang, invite_code)
+    username = message.from_user.username or ""
+    user_data, error_data = await get_or_create_user(message.from_user.id, initial_lang, invite_code, username)
     
     if error_data and error_data.get("error") in ["invite_code_required", "invalid_invite_code"]:
         await state.set_state(RegistrationState.waiting_for_invite_code)
@@ -357,7 +360,8 @@ async def process_invite_code(message: types.Message, state: FSMContext):
     user_lang = message.from_user.language_code or "en"
     initial_lang = "fa" if "fa" in user_lang else "en"
     
-    user_data, error_data = await get_or_create_user(message.from_user.id, initial_lang, invite_code)
+    username = message.from_user.username or ""
+    user_data, error_data = await get_or_create_user(message.from_user.id, initial_lang, invite_code, username)
     
     if error_data and error_data.get("error") == "invalid_invite_code":
         err_msg = "❌ Invalid invite code. Please try again." if initial_lang == "en" else "❌ کد دعوت نامعتبر است. لطفاً دوباره تلاش کنید."

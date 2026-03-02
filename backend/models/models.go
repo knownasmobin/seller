@@ -9,6 +9,7 @@ import (
 type User struct {
 	ID         uint           `gorm:"primaryKey" json:"ID"`
 	TelegramID int64          `gorm:"uniqueIndex;not null" json:"telegram_id"`
+	Username   string         `gorm:"size:100" json:"username"`
 	Language   string         `gorm:"size:10;default:'fa'" json:"language"`
 	Balance    float64        `gorm:"default:0.0" json:"balance"`
 	IsAdmin    bool           `gorm:"default:false" json:"is_admin"`
