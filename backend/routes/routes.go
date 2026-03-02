@@ -66,6 +66,7 @@ func SetupRoutes(router fiber.Router) {
 	// Admin Routes (using the same generic AuthMiddleware)
 	admin := protected.Group("/admin")
 	admin.Get("/stats", controllers.GetAdminStats)
+	admin.Get("/users", controllers.GetUsers)
 	admin.Post("/broadcast", controllers.BroadcastMessage)
 	admin.Post("/users/:telegram_id/message", controllers.SendMessageToUser)
 	admin.Get("/servers", controllers.GetServers)

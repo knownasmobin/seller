@@ -532,3 +532,34 @@ func GetRequiredChannel(c *fiber.Ctx) error {
 		"required_channel_link": requiredChannelLink,
 	})
 }
+
+// GetUsers returns all users with invite/referral information
+// @Summary Get all users with invite tracking
+// @Description Returns list of all users with their inviter and referral count
+// @Tags Admin
+// @Produce json
+// @Success 200 {array} object
+// @Router /admin/users [get]
+func GetUsers(c *fiber.Ctx) error {
+	type UserWithReferrals struct {
+		ID            uint      `json:"id"`
+		TelegramID    int64     `json:"telegram_id"`
+		Language      string    `json:"language"`
+		Balance       float64   `json:"balance"`
+		IsAdmin       bool      `json:"is_admin"`
+		InvitedBy     int64     `json:"invited_by"`
+		ReferralCount int64     `json:"referral_count"`
+		CreatedAt     time.Time `json:"created_at"`
+	}
+
+	var users []UserWithReferrals
+	database.DB.Table("users").
+		Select("users.id, users.telegram_id, users.language, users.balance, users.is_admin, users.invited_by, users.created_at, COUNT(referrals.id) as referral_count").
+		Joins("LEFT JOIN users as referrals ON referrals.invited_by = users.telegram_id AND referrals.deleted_at IS NULL").
+		Where("users.deleted_at IS NULL").
+		Group("users.id, users.telegram_id, users.language, users.balance, users.is_admin, users.invited_by, users.created_at").
+		Order("users.created_at DESC").
+		Scan(&users)
+
+	return c.JSON(users)
+}

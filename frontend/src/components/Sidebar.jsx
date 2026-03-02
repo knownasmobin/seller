@@ -4,6 +4,7 @@ import { LayoutDashboard, Server, Users, LogOut, Send, Settings, Globe } from 'l
 export default function Sidebar({ onLogout }) {
     const navItems = [
         { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} /> },
+        { name: 'Users', path: '/users', icon: <Users size={20} /> },
         { name: 'Active Plans', path: '/plans', icon: <Server size={20} /> },
         { name: 'Endpoints', path: '/endpoints', icon: <Globe size={20} /> },
         { name: 'User Orders', path: '/orders', icon: <Users size={20} /> },

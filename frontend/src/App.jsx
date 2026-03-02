@@ -7,6 +7,7 @@ import Orders from './pages/Orders'
 import Broadcast from './pages/Broadcast'
 import Settings from './pages/Settings'
 import Endpoints from './pages/Endpoints'
+import Users from './pages/Users'
 import Sidebar from './components/Sidebar'
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/users" element={<Users />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/endpoints" element={<Endpoints />} />
