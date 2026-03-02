@@ -208,7 +208,8 @@ func GetAdminStats(c *fiber.Ctx) error {
 func getBroadcastUsers(target string) ([]models.User, error) {
 	var users []models.User
 
-	if target == "active" {
+	switch target {
+	case "active":
 		// Users with at least one active, non-expired subscription
 		// Use DISTINCT to avoid duplicate recipients for users with multiple subscriptions.
 		err := database.DB.
@@ -220,7 +221,21 @@ func getBroadcastUsers(target string) ([]models.User, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	case "vpn_buyers":
+		// Users who have ever bought a VPN plan (WireGuard or V2Ray), regardless of current status/expiry.
+		// This targets historical buyers of VPN products only.
+		err := database.DB.
+			Model(&models.User{}).
+			Distinct("users.id", "users.telegram_id", "users.language", "users.balance", "users.is_admin", "users.invited_by", "users.created_at", "users.updated_at", "users.deleted_at").
+			Joins("JOIN subscriptions ON subscriptions.user_id = users.id").
+			Joins("JOIN plans ON plans.id = subscriptions.plan_id").
+			Where("plans.server_type IN ?", []string{"v2ray", "wireguard"}).
+			Find(&users).Error
+		if err != nil {
+			return nil, err
+		}
+	default:
+		// All users
 		if err := database.DB.Find(&users).Error; err != nil {
 			return nil, err
 		}

@@ -117,11 +117,11 @@ export default function Broadcast() {
                     {/* Target Selector */}
                     <div style={{ marginBottom: '20px' }}>
                         <label className="input-label" style={{ marginBottom: '12px', display: 'block' }}>Audience</label>
-                        <div className="flex gap-4">
+                        <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
                             <button
                                 className={`btn ${target === 'all' ? 'btn-primary' : 'btn-ghost'}`}
                                 onClick={() => setTarget('all')}
-                                style={{ flex: 1 }}
+                                style={{ flex: 1, minWidth: 0 }}
                             >
                                 <Users size={18} />
                                 All Users
@@ -129,10 +129,18 @@ export default function Broadcast() {
                             <button
                                 className={`btn ${target === 'active' ? 'btn-primary' : 'btn-ghost'}`}
                                 onClick={() => setTarget('active')}
-                                style={{ flex: 1 }}
+                                style={{ flex: 1, minWidth: 0 }}
                             >
                                 <Zap size={18} />
                                 Active Subscribers
+                            </button>
+                            <button
+                                className={`btn ${target === 'vpn_buyers' ? 'btn-primary' : 'btn-ghost'}`}
+                                onClick={() => setTarget('vpn_buyers')}
+                                style={{ flex: 1, minWidth: 0 }}
+                            >
+                                <Zap size={18} />
+                                VPN Buyers (WireGuard/V2Ray)
                             </button>
                         </div>
                     </div>
@@ -236,6 +244,7 @@ export default function Broadcast() {
                             <li>Use <code style={{ background: 'rgba(99,102,241,0.15)', padding: '2px 6px', borderRadius: '4px', color: 'var(--primary)' }}>*bold*</code> for emphasis</li>
                             <li>Use <code style={{ background: 'rgba(99,102,241,0.15)', padding: '2px 6px', borderRadius: '4px', color: 'var(--primary)' }}>_italic_</code> for subtlety</li>
                             <li>"Active Subscribers" targets users with non-expired VPN configs</li>
+                            <li>"VPN Buyers" targets users who have ever purchased WireGuard or V2Ray services</li>
                         </ul>
                     </div>
                 </div>
